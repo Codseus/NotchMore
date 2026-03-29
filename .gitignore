@@ -1,0 +1,59 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+build/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.xg
+.swiftpm/
+default.profraw
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+.apple/
+
+# Simulator
+Application Support/
+
+# Local configuration
+config.json
+secrets.swift
+
+# Crashlytics
+com.crashlytics.data/
+
+# CocoaPods
+Pods/
+*.xcworkspace/
+!*.xcworkspace/contents.xcworkspacedata
+!NotchMore.xcodeproj/project.xcworkspace/
+!NotchMore.xcodeproj/project.xcworkspace/xcshareddata/
+!NotchMore.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+!NotchMore.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+NotchMore.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/
+
+# Accidental Code Signing
+*.cer
+*.p12
+
+# VS Code
+.vscode/
+buildServer.json
+.compile

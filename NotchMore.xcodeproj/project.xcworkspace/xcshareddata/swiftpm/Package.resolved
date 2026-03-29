@@ -1,0 +1,23 @@
+{
+  "originHash" : "10b71f8296b3557714ab38e16c965b5f2913c4784792133102fa3a4c2e91143e",
+  "pins" : [
+    {
+      "identity" : "dynamicnotchkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MrKai77/DynamicNotchKit",
+      "state" : {
+        "revision" : "3c405930fd4d9f8498303683f32492c26d3a9b2b",
+        "version" : "1.0.0"
+      }
+    },
+    {
+      "identity" : "mediaremote-adapter",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/ejbills/mediaremote-adapter",
+      "state" : {
+        "revision" : "3529aa25023082a2ceadebcd2c9c4a9430ee96b9"
+      }
+    }
+  ],
+  "version" : 3
+}
