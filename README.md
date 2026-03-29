@@ -27,7 +27,7 @@ If you have any feature requests, open an issue using the "Feature Request" labe
 
 ## Background Features
 
-### Window switcher with live previews
+- Window switcher with live previews
 ![windowswitcher](https://github.com/user-attachments/assets/f7d08f05-52bb-491a-aa34-2c44e5470f36)
 - Paste without formatting
 - Cut and paste files in Finder like on Windows with Command+X / Command+V
@@ -48,25 +48,19 @@ If you have any feature requests, open an issue using the "Feature Request" labe
 
 ## Installation
 
-Install the latest release from the releases page.
+Install the latest dmg file from the releases page.
+- Double click to open the dmg file
+- Drag the app icon to applications folder
+- Close the NotchMore Installer window
+- Search for NotchMore in spotlight or go to the applications folder in finder and run NotchMore.app
+- After you got the security warning click Done and go to the "Privacy & Security" section in system settings
+- Scroll down and you will see under Security, " "NotchMore.app" was blocked " click Open Anyway.
 
 ### From Source
 
 1. Clone the repository.
 2. Open `NotchMore.xcodeproj` in Xcode.
 3. Build and run the `NotchMore` scheme.
-
-Or build from Terminal:
-
-```bash
-xcodebuild -scheme NotchMore -configuration Debug -derivedDataPath .build build
-```
-
-The built app will be available under:
-
-```bash
-.build/Build/Products/Debug/NotchMore.app
-```
 
 ## Dependency
 
