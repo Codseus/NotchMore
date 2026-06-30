@@ -99,6 +99,14 @@ class FileShelfManager: ObservableObject {
             self.saveFiles()
         }
     }
+
+    func removeFiles(_ files: [ShelfFile]) {
+        let ids = Set(files.map(\.id))
+        DispatchQueue.main.async {
+            self.shelfFiles.removeAll(where: { ids.contains($0.id) })
+            self.saveFiles()
+        }
+    }
     
     func clearAll() {
         DispatchQueue.main.async {
@@ -109,6 +117,26 @@ class FileShelfManager: ObservableObject {
     
     func openFile(_ file: ShelfFile) {
         NSWorkspace.shared.open(file.url)
+    }
+
+    func copyFile(_ file: ShelfFile) {
+        copyFiles([file])
+    }
+
+    func copyFiles(_ files: [ShelfFile]) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.writeObjects(files.map { $0.url as NSURL })
+    }
+
+    func copyPath(_ file: ShelfFile) {
+        copyPaths([file])
+    }
+
+    func copyPaths(_ files: [ShelfFile]) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(files.map(\.url.path).joined(separator: "\n"), forType: .string)
     }
     
     // MARK: - Persistence

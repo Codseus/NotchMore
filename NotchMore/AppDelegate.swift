@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var globalKeyMonitor: Any?
     var settingsWindow: NSWindow?
+    var onboardingWindow: NSWindow?
 
     private var mediaManager = MediaManager()
     private var clipboardManager = ClipboardManager()
@@ -33,7 +34,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @AppStorage("invertTrackpadScroll") private var invertTrackpadScroll: Bool = false
     @AppStorage("hoverDelay") private var hoverDelay: Double = 0.0
     @AppStorage("enableWindowSwitcher") private var enableWindowSwitcher: Bool = false
+    @AppStorage("enableDockPreviews") private var enableDockPreviews: Bool = false
     var windowSwitcherWindow: NSWindow?
+    var dockPreviewWindow: NSWindow?
     var permissionsWindow: NSWindow?
     private var lastWindowSwitcherIDs: [CGWindowID] = []
     private var notchPanelController: NotchPanelController?
@@ -44,6 +47,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setupAppMenu()
         setupWindows()
         setupWindowSwitcherWindow()
+        setupDockPreviewWindow()
 
         NotificationCenter.default.addObserver(
             self,
@@ -58,23 +62,26 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         ScrollManager.shared.updateSettings()
         ThreeFingerClickManager.shared.updateMonitoringState()
+        CapsLockNoDelayManager.shared.updateState()
+        SystemHUDManager.shared.start()
 
         setupRestWindows()
+        _ = UpdateManager.shared
 
         if enableWindowSwitcher {
             WindowSwitcherManager.shared.start()
         }
+        if enableDockPreviews {
+            DockPreviewManager.shared.start()
+        }
 
         setupCombineObservers()
 
-        UpdateManager.shared.checkForUpdates()
-
-        // Show settings on first launch
-        let hasLaunchedBefore = UserDefaults.standard.bool(forKey: "hasLaunchedBefore_v1")
-        if !hasLaunchedBefore {
-            UserDefaults.standard.set(true, forKey: "hasLaunchedBefore_v1")
+        let hasCompletedOnboarding = UserDefaults.standard.bool(
+            forKey: "hasCompletedOnboarding_v1")
+        if !hasCompletedOnboarding {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.openSettings()
+                self.openOnboarding()
             }
         }
     }
@@ -90,6 +97,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             title: "Settings", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self
         appMenu.addItem(settingsItem)
+
+        let updateItem = NSMenuItem(
+            title: "Check for Updates...", action: #selector(UpdateManager.checkForUpdates(_:)),
+            keyEquivalent: "")
+        updateItem.target = UpdateManager.shared
+        appMenu.addItem(updateItem)
 
         appMenu.addItem(NSMenuItem.separator())
 
@@ -152,6 +165,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let x = (screenFrame.width - size.width) / 2
         let y = (screenFrame.height - size.height) / 2
         window.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: false)
+    }
+
+    private func setupDockPreviewWindow() {
+        let window = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        window.level = .screenSaver
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.alphaValue = 0
+        window.animationBehavior = .none
+        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        window.acceptsMouseMovedEvents = true
+
+        window.contentView = NSHostingView(rootView: DockPreviewView())
+        self.dockPreviewWindow = window
+    }
+
+    private func layoutDockPreviewWindow(_ window: NSWindow) {
+        guard let contentView = window.contentView else { return }
+
+        let size = contentView.fittingSize
+        let anchorFrame = DockPreviewManager.shared.anchorFrame
+        let anchor = anchorFrame.isEmpty
+            ? DockPreviewManager.shared.anchorPoint
+            : CGPoint(x: anchorFrame.midX, y: anchorFrame.midY)
+        let screen = NSScreen.screens.first { $0.frame.contains(anchor) } ?? NSScreen.main
+        let screenFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let fullScreenFrame = screen?.frame ?? screenFrame
+        let edgePadding: CGFloat = 12
+        let gap: CGFloat = 10
+
+        let isLeftDock = anchorFrame.isEmpty
+            ? anchor.x < screenFrame.minX + 96
+            : anchorFrame.midX < fullScreenFrame.minX + 96
+        let isRightDock = anchorFrame.isEmpty
+            ? anchor.x > screenFrame.maxX - 96
+            : anchorFrame.midX > fullScreenFrame.maxX - 96
+
+        let x: CGFloat
+        let y: CGFloat
+        if isLeftDock {
+            let itemMaxX = anchorFrame.isEmpty ? anchor.x : anchorFrame.maxX
+            x = min(screenFrame.maxX - size.width - edgePadding, itemMaxX + gap)
+            y = min(max(screenFrame.minY + edgePadding, anchor.y - size.height / 2), screenFrame.maxY - size.height - edgePadding)
+        } else if isRightDock {
+            let itemMinX = anchorFrame.isEmpty ? anchor.x : anchorFrame.minX
+            x = max(screenFrame.minX + edgePadding, itemMinX - size.width - gap)
+            y = min(max(screenFrame.minY + edgePadding, anchor.y - size.height / 2), screenFrame.maxY - size.height - edgePadding)
+        } else {
+            let itemMaxY = anchorFrame.isEmpty ? anchor.y : anchorFrame.maxY
+            x = min(max(screenFrame.minX + edgePadding, anchor.x - size.width / 2), screenFrame.maxX - size.width - edgePadding)
+            y = min(
+                max(screenFrame.minY + edgePadding, itemMaxY + gap),
+                screenFrame.maxY - size.height - edgePadding
+            )
+        }
+
+        let frame = NSRect(x: x, y: y, width: size.width, height: size.height)
+        window.setFrame(frame, display: false)
+        DockPreviewManager.shared.setPreviewWindowFrame(frame)
     }
 
     private func setupWindows() {
@@ -278,12 +356,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 ThreeFingerClickManager.shared.updateMonitoringState()
             }
             .store(in: &cancellables)
+
+        UserDefaults.standard.publisher(for: \.enableCapsLockNoDelay)
+            .dropFirst()
+            .sink { enabled in CapsLockNoDelayManager.shared.setEnabled(enabled) }
+            .store(in: &cancellables)
+
         UserDefaults.standard.publisher(for: \.enableWindowSwitcher)
             .sink { enabled in
                 if enabled {
                     WindowSwitcherManager.shared.start()
                 } else {
                     WindowSwitcherManager.shared.stop()
+                }
+            }
+            .store(in: &cancellables)
+
+        UserDefaults.standard.publisher(for: \.enableDockPreviews)
+            .sink { enabled in
+                if enabled {
+                    DockPreviewManager.shared.start()
+                } else {
+                    DockPreviewManager.shared.stop()
                 }
             }
             .store(in: &cancellables)
@@ -306,6 +400,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.lastWindowSwitcherIDs = []
                     window.alphaValue = 0
                     window.orderOut(nil)
+                }
+            }
+            .store(in: &cancellables)
+
+        DockPreviewManager.shared.$isPreviewVisible
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] visible in
+                guard let self = self, let window = self.dockPreviewWindow else { return }
+                if visible {
+                    self.layoutDockPreviewWindow(window)
+                    window.alphaValue = 0
+                    window.orderFrontRegardless()
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0.08
+                        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                        window.animator().alphaValue = 1
+                    }
+                } else {
+                    window.alphaValue = 0
+                    window.orderOut(nil)
+                }
+            }
+            .store(in: &cancellables)
+
+        DockPreviewManager.shared.$windows
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self = self,
+                    let window = self.dockPreviewWindow,
+                    DockPreviewManager.shared.isPreviewVisible
+                else { return }
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) {
+                    self.layoutDockPreviewWindow(window)
                 }
             }
             .store(in: &cancellables)
@@ -378,6 +506,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.setContentSize(NSSize(width: 700, height: 560))
             window.center()
             window.isReleasedWhenClosed = false
+            window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
             settingsWindow = window
 
             NotificationCenter.default.addObserver(
@@ -388,11 +517,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
         NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.level = .floating
         settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.settingsWindow?.level = .normal
+        }
+    }
+
+    @objc func openOnboarding() {
+        if onboardingWindow == nil {
+            let controller = NSHostingController(
+                rootView: OnboardingView { [weak self] in
+                    self?.closeOnboarding()
+                }
+            )
+            let window = NSWindow(contentViewController: controller)
+            window.title = "Set Up NotchMore"
+            window.styleMask = [.titled, .closable]
+            window.setContentSize(NSSize(width: 820, height: 720))
+            window.center()
+            window.isReleasedWhenClosed = false
+            onboardingWindow = window
+
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(onboardingWindowWillClose),
+                name: NSWindow.willCloseNotification,
+                object: window
+            )
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        onboardingWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    private func closeOnboarding() {
+        onboardingWindow?.close()
+    }
+
     @objc private func settingsWindowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+    }
+
+    @objc private func onboardingWindowWillClose(_ notification: Notification) {
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding_v1")
+        UserDefaults.standard.set(true, forKey: "hasLaunchedBefore_v1")
         NSApp.setActivationPolicy(.accessory)
     }
 
@@ -481,8 +653,14 @@ extension UserDefaults {
     @objc dynamic var enableWindowSwitcher: Bool {
         return bool(forKey: "enableWindowSwitcher")
     }
+    @objc dynamic var enableDockPreviews: Bool {
+        return bool(forKey: "enableDockPreviews")
+    }
     @objc dynamic var enableThreeFingerMiddleClick: Bool {
         return bool(forKey: "enableThreeFingerMiddleClick")
+    }
+    @objc dynamic var enableCapsLockNoDelay: Bool {
+        return bool(forKey: "enableCapsLockNoDelay")
     }
     @objc dynamic var restIntervalMinutes: Int {
         return integer(forKey: "restIntervalMinutes")

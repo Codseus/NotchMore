@@ -15,13 +15,24 @@ final class NotchPanelController {
 
     private var dynamicNotch: DynamicNotch<CombinedNotchView, EmptyView, EmptyView>?
     private var isDynamicNotchVisible = false
-    private var isDraggingItem = false
+    private var isDraggingOverTrigger = false
+    private var isDraggingOverPanel = false
+    private var isDragSessionActive = false
     private var triggerWindows: [NSWindow] = []
     private var isHoveringTrigger = false
     private var isHoveringPanel = false
     private var pendingHideWorkItem: DispatchWorkItem?
+    private var pendingDragEndWorkItem: DispatchWorkItem?
+    private var hoverValidationTimer: Timer?
+    private var visibilityTask: Task<Void, Never>?
+    private var wantsNotchVisible = false
+    private var keepVisibleUntil: Date?
 
     private let hideGracePeriod: TimeInterval = 0.3
+    private let dragSessionGracePeriod: TimeInterval = 0.8
+    private let hoverValidationInterval: TimeInterval = 0.12
+    private let visiblePanelHitTestPadding: CGFloat = 8
+    private let externalInteractionHoldDuration: TimeInterval = 10
 
     init(
         mediaManager: MediaManager,
@@ -42,35 +53,61 @@ final class NotchPanelController {
     }
 
     func showNotch() {
-        Task { @MainActor in
-            if isDraggingItem {
-                dynamicNotch?.windowController?.window?.level = .statusBar
-            } else {
-                dynamicNotch?.windowController?.window?.level = .screenSaver
-            }
+        wantsNotchVisible = true
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        startHoverValidationTimer()
+
+        visibilityTask?.cancel()
+        visibilityTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.configureNotchWindowLevel()
             if !isDynamicNotchVisible {
                 isDynamicNotchVisible = true
                 await dynamicNotch?.expand()
             }
-            pendingHideWorkItem?.cancel()
-            pendingHideWorkItem = nil
+            guard !Task.isCancelled, wantsNotchVisible else { return }
+            self.configureNotchWindowLevel()
         }
     }
 
     func hideNotch() {
-        Task { @MainActor in
-            guard isDynamicNotchVisible else { return }
+        wantsNotchVisible = false
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        dynamicNotch?.windowController?.window?.ignoresMouseEvents = false
+        scheduleDragSessionEnd()
+
+        visibilityTask?.cancel()
+        visibilityTask = Task { @MainActor [weak self] in
+            guard let self, self.isDynamicNotchVisible else { return }
             await dynamicNotch?.hide()
-            isDynamicNotchVisible = false
+            guard !Task.isCancelled, !wantsNotchVisible else { return }
+            self.isDynamicNotchVisible = false
+            self.stopHoverValidationTimer()
         }
 
     }
 
-    private func evaluateHoverState() {
-        let shouldShow =
-            isHoveringTrigger || (isDynamicNotchVisible && isHoveringPanel) || isDraggingItem
+    private var shouldKeepNotchVisible: Bool {
+        isHoveringTrigger || isHoveringPanel || isDraggingOverTrigger || isDraggingOverPanel
+            || isDragSessionActive || isExternalInteractionActive
+    }
 
-        if shouldShow {
+    private var isExternalInteractionActive: Bool {
+        guard let keepVisibleUntil else { return false }
+        return keepVisibleUntil > Date()
+    }
+
+    private func holdForExternalInteraction(duration: TimeInterval? = nil) {
+        keepVisibleUntil = Date().addingTimeInterval(duration ?? externalInteractionHoldDuration)
+        pendingHideWorkItem?.cancel()
+        pendingHideWorkItem = nil
+        showNotch()
+    }
+
+    private func evaluateHoverState() {
+        if shouldKeepNotchVisible {
             pendingHideWorkItem?.cancel()
             pendingHideWorkItem = nil
             showNotch()
@@ -79,8 +116,14 @@ final class NotchPanelController {
             guard pendingHideWorkItem == nil else { return }
 
             let workItem = DispatchWorkItem { [weak self] in
-                self?.hideNotch()
-                self?.pendingHideWorkItem = nil
+                Task { @MainActor in
+                    guard let self else { return }
+                    self.refreshPointerHoverState()
+                    if !self.shouldKeepNotchVisible {
+                        self.hideNotch()
+                    }
+                    self.pendingHideWorkItem = nil
+                }
             }
             pendingHideWorkItem = workItem
             DispatchQueue.main.asyncAfter(deadline: .now() + hideGracePeriod, execute: workItem)
@@ -97,9 +140,68 @@ final class NotchPanelController {
         evaluateHoverState()
     }
 
-    private func draggingChanged(_ isDragging: Bool) {
-        isDraggingItem = isDragging
+    private func triggerDraggingChanged(_ isDragging: Bool) {
+        isDraggingOverTrigger = isDragging
+        if isDragging {
+            beginDragSession()
+            isHoveringTrigger = false
+        } else {
+            scheduleDragSessionEnd()
+        }
+        configureNotchWindowLevel()
         evaluateHoverState()
+    }
+
+    private func panelDraggingChanged(_ isDragging: Bool) {
+        isDraggingOverPanel = isDragging
+        if isDragging {
+            beginDragSession()
+        } else {
+            scheduleDragSessionEnd()
+        }
+        configureNotchWindowLevel()
+        evaluateHoverState()
+    }
+
+    private func handleDroppedProviders(_ providers: [NSItemProvider]) -> Bool {
+        guard isFileShelfEnabled(), !providers.isEmpty else {
+            isDraggingOverTrigger = false
+            isDraggingOverPanel = false
+            endDragSession()
+            configureNotchWindowLevel()
+            evaluateHoverState()
+            return false
+        }
+
+        for provider in providers {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) {
+                [weak self] item, _ in
+                guard let url = Self.url(from: item) else { return }
+                DispatchQueue.main.async {
+                    self?.fileShelfManager.addFile(url: url)
+                }
+            }
+        }
+
+        isDraggingOverTrigger = false
+        isDraggingOverPanel = false
+        endDragSession()
+        configureNotchWindowLevel()
+        showNotch()
+        return true
+    }
+
+    nonisolated private static func url(from item: NSSecureCoding?) -> URL? {
+        if let url = item as? URL {
+            return url
+        }
+        if let data = item as? Data {
+            return URL(dataRepresentation: data, relativeTo: nil)
+        }
+        if let string = item as? String {
+            return URL(string: string)
+        }
+        return nil
     }
 
     func start() {
@@ -108,8 +210,126 @@ final class NotchPanelController {
     }
 
     func updateContentWindowFrame() {
+        stopHoverValidationTimer()
         hideNotch()
         rebuildDynamicNotch()
+    }
+
+    private func configureNotchWindowLevel() {
+        guard let window = dynamicNotch?.windowController?.window else { return }
+
+        let shouldLetTriggerHandleDrag =
+            isDraggingOverTrigger
+            && !isDraggingOverPanel
+            && isPointerOverTrigger()
+        window.level = isDragSessionActive ? .statusBar : .screenSaver
+        window.ignoresMouseEvents = shouldLetTriggerHandleDrag
+    }
+
+    private func beginDragSession() {
+        pendingDragEndWorkItem?.cancel()
+        pendingDragEndWorkItem = nil
+        isDragSessionActive = true
+    }
+
+    private func scheduleDragSessionEnd() {
+        pendingDragEndWorkItem?.cancel()
+
+        guard !isDraggingOverTrigger, !isDraggingOverPanel else { return }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self, !self.isDraggingOverTrigger, !self.isDraggingOverPanel else {
+                    return
+                }
+                self.endDragSession()
+                self.configureNotchWindowLevel()
+                self.evaluateHoverState()
+            }
+        }
+        pendingDragEndWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + dragSessionGracePeriod, execute: workItem)
+    }
+
+    private func endDragSession() {
+        pendingDragEndWorkItem?.cancel()
+        pendingDragEndWorkItem = nil
+        isDragSessionActive = false
+        dynamicNotch?.windowController?.window?.ignoresMouseEvents = false
+    }
+
+    private func isPointerOverTrigger() -> Bool {
+        let mouseLocation = NSEvent.mouseLocation
+        return triggerWindows.contains { window in
+            window.isVisible && window.frame.contains(mouseLocation)
+        }
+    }
+
+    private func startHoverValidationTimer() {
+        guard hoverValidationTimer == nil else { return }
+        hoverValidationTimer = Timer.scheduledTimer(
+            withTimeInterval: hoverValidationInterval,
+            repeats: true
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.refreshPointerHoverState()
+            }
+        }
+    }
+
+    private func stopHoverValidationTimer() {
+        hoverValidationTimer?.invalidate()
+        hoverValidationTimer = nil
+    }
+
+    private func refreshPointerHoverState() {
+        guard isDynamicNotchVisible else { return }
+
+        configureNotchWindowLevel()
+
+        let mouseLocation = NSEvent.mouseLocation
+        let isActuallyHoveringTrigger =
+            !isDraggingOverTrigger
+            && isPointerOverTrigger()
+        let panelWindow = dynamicNotch?.windowController?.window
+        let visiblePanelFrame = panelWindow?.screen.map(visiblePanelInteractionFrame(on:))
+        let isActuallyHoveringPanel = panelWindow?.isVisible == true
+            && visiblePanelFrame?.contains(mouseLocation) == true
+
+        guard isActuallyHoveringTrigger != isHoveringTrigger
+            || isActuallyHoveringPanel != isHoveringPanel
+        else { return }
+
+        isHoveringTrigger = isActuallyHoveringTrigger
+        isHoveringPanel = isActuallyHoveringPanel
+        evaluateHoverState()
+    }
+
+    private func visiblePanelInteractionFrame(on screen: NSScreen) -> NSRect {
+        let sectionCount = NotchLayout.panelSectionCount(
+            enableFileShelf: isFileShelfEnabled(),
+            showClipboard: isClipboardEnabled()
+        )
+        let metrics = NotchLayout.scaledMetrics(
+            panelWidth: NotchConstants.basePanelWidth,
+            panelHeight: NotchConstants.basePanelHeight,
+            sectionCount: sectionCount,
+            screenWidth: screen.visibleFrame.width
+        )
+        let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 24
+        let contentWidth = metrics.totalWidth
+            + (NotchLayout.expandedSafeAreaInset * 2)
+            + 30
+            + (visiblePanelHitTestPadding * 2)
+        let contentHeight = menuBarHeight
+            + metrics.totalHeight
+            + NotchLayout.expandedSafeAreaInset
+            + (visiblePanelHitTestPadding * 2)
+        let origin = NSPoint(
+            x: screen.frame.midX - (contentWidth / 2),
+            y: screen.frame.maxY - contentHeight
+        )
+        return NSRect(origin: origin, size: NSSize(width: contentWidth, height: contentHeight))
     }
 
     private func setupTriggerWindows() {
@@ -138,7 +358,10 @@ final class NotchPanelController {
                         self?.triggerHoverChanged(isHovering)
                     },
                     onDragging: { [weak self] isDragging in
-                        self?.draggingChanged(isDragging)
+                        self?.triggerDraggingChanged(isDragging)
+                    },
+                    onDropProviders: { [weak self] providers in
+                        self?.handleDroppedProviders(providers) ?? false
                     }
                 )
             )
@@ -159,10 +382,16 @@ final class NotchPanelController {
                 self?.panelHoverChanged(isHovering)
             },
             onDropTargetChange: { [weak self] isTargeted in
-                self?.draggingChanged(isTargeted)
+                self?.panelDraggingChanged(isTargeted)
+            },
+            onDropProviders: { [weak self] providers in
+                self?.handleDroppedProviders(providers) ?? false
+            },
+            onExternalInteraction: { [weak self] in
+                self?.holdForExternalInteraction()
             }
         )
-        dynamicNotch = DynamicNotch {
+        dynamicNotch = DynamicNotch(hoverBehavior: []) {
             combinedView
         }
     }
@@ -185,6 +414,7 @@ final class NotchPanelController {
     struct TriggerAreaView: View {
         var onHoverChange: (Bool) -> Void
         var onDragging: (Bool) -> Void
+        var onDropProviders: ([NSItemProvider]) -> Bool
         @State private var isDropTargeted: Bool = false
 
         var body: some View {
@@ -192,17 +422,14 @@ final class NotchPanelController {
                 .contentShape(Rectangle())
                 .onHover { isHovering in
                     onHoverChange(isHovering)
-                }.dropDestination(for: URL.self) { items, location in
-                    return true
-                } isTargeted: { isTargeted in
-                    if isTargeted {
-                        onHoverChange(true)
-                        onDragging(true)
-                    } else {
-                        onHoverChange(false)
-                        onDragging(false)
-
-                    }
+                }
+                .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+                    let didAccept = onDropProviders(providers)
+                    onDragging(false)
+                    return didAccept
+                }
+                .onChange(of: isDropTargeted, initial: false) { _, isTargeted in
+                    onDragging(isTargeted)
                 }
         }
     }

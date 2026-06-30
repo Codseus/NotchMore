@@ -14,6 +14,8 @@ struct CombinedNotchView: View {
     let onOpenSettings: () -> Void
     var onHover: ((Bool) -> Void)?
     var onDropTargetChange: ((Bool) -> Void)?
+    var onDropProviders: (([NSItemProvider]) -> Bool)?
+    var onExternalInteraction: (() -> Void)?
 
     init(
         mediaManager: MediaManager,
@@ -22,7 +24,9 @@ struct CombinedNotchView: View {
         previewScale: CGFloat = 1.0,
         onOpenSettings: @escaping () -> Void = {},
         onHover: ((Bool) -> Void)? = nil,
-        onDropTargetChange: ((Bool) -> Void)? = nil
+        onDropTargetChange: ((Bool) -> Void)? = nil,
+        onDropProviders: (([NSItemProvider]) -> Bool)? = nil,
+        onExternalInteraction: (() -> Void)? = nil
     ) {
         self.mediaManager = mediaManager
         self.clipboardManager = clipboardManager
@@ -30,6 +34,8 @@ struct CombinedNotchView: View {
         self.onOpenSettings = onOpenSettings
         self.onHover = onHover
         self.onDropTargetChange = onDropTargetChange
+        self.onDropProviders = onDropProviders
+        self.onExternalInteraction = onExternalInteraction
     }
 
     private var sectionCount: Int {
@@ -79,20 +85,36 @@ struct CombinedNotchView: View {
     }
 
     private func handlePanelDrop(providers: [NSItemProvider]) -> Bool {
-        guard enableFileShelf else { return false }
+        guard enableFileShelf, !providers.isEmpty else { return false }
+
+        if let onDropProviders {
+            return onDropProviders(providers)
+        }
 
         for provider in providers {
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) {
                 item, _ in
-                if let data = item as? Data,
-                    let url = URL(dataRepresentation: data, relativeTo: nil)
-                {
+                guard let url = Self.url(from: item) else { return }
+                DispatchQueue.main.async {
                     fileShelfManager.addFile(url: url)
                 }
             }
         }
 
         return true
+    }
+
+    private static func url(from item: NSSecureCoding?) -> URL? {
+        if let url = item as? URL {
+            return url
+        }
+        if let data = item as? Data {
+            return URL(dataRepresentation: data, relativeTo: nil)
+        }
+        if let string = item as? String {
+            return URL(string: string)
+        }
+        return nil
     }
 
     var body: some View {
@@ -102,7 +124,8 @@ struct CombinedNotchView: View {
                     FileShelfView(
                         fileShelfManager: fileShelfManager,
                         panelWidth: panelWidth,
-                        panelHeight: panelHeight
+                        panelHeight: panelHeight,
+                        onExternalInteraction: onExternalInteraction
                     )
                 }
             }
@@ -267,7 +290,13 @@ struct ExpandedNotchView: View {
                 Text(hasMedia ? (mediaManager.isPlaying ? "Now Playing" : "Paused") : "Media")
                     .font(.system(size: 10, weight: .semibold)).lineLimit(1)
             } icon: {
-                Image(systemName: hasMedia ? "waveform" : "music.note")
+                if hasMedia, let icon = mediaManager.sourceIcon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: hasMedia ? "waveform" : "music.note")
+                }
             }
             .foregroundStyle(.primary)
             .padding(.horizontal, 10)
@@ -286,6 +315,12 @@ struct ExpandedNotchView: View {
                 albumArtwork
                 Spacer(minLength: 0)
                 VStack(alignment: .center) {
+                    Text(mediaManager.sourceName)
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .padding(.bottom, 1)
+
                     Text(mediaManager.currentTrackTitle)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.primary)
@@ -371,20 +406,39 @@ struct ExpandedNotchView: View {
     }
 
     private var albumArtwork: some View {
-        Group {
-            if let artwork = mediaManager.artwork {
-                Image(nsImage: artwork)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.ultraThinMaterial)
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let artwork = mediaManager.artwork {
+                    Image(nsImage: artwork)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(.ultraThinMaterial)
 
-                    Image(systemName: "music.note")
-                        .font(.system(size: albumArtSize * 0.50, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        Image(systemName: "music.note")
+                            .font(.system(size: albumArtSize * 0.50, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+            }
+
+            if let icon = mediaManager.sourceIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 22, height: 22)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(.regularMaterial)
+                            .frame(width: 28, height: 28)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.white.opacity(0.26), lineWidth: 0.8)
+                    )
+                    .padding(4)
             }
         }
         .frame(width: albumArtSize, height: albumArtSize)

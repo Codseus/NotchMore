@@ -57,3 +57,5 @@ NotchMore.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/configuration/
 .vscode/
 buildServer.json
 .compile
+
+graphify-out

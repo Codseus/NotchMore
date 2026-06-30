@@ -37,8 +37,8 @@ class ScrollManager: ObservableObject {
     func startMonitoring() {
         if eventTap != nil { return }
         
-        // Check accessibility trust and trigger the system prompt when needed.
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        // Check accessibility trust quietly; Settings owns the explicit permission flow.
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
         guard AXIsProcessTrustedWithOptions(options as CFDictionary) else {
             print("Accessibility permission required for scroll monitoring.")
             return

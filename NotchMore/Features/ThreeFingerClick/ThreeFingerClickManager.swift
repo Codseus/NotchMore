@@ -158,9 +158,13 @@ class ThreeFingerClickManager: ObservableObject {
         if eventTap != nil { return true }
         
         
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: false]
         let isTrusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
         permissionStatus = isTrusted ? "Granted" : "Denied/Missing"
+        guard isTrusted else {
+            print("ThreeFinger: Accessibility permission required for event tap.")
+            return false
+        }
         
         let eventMask: CGEventMask = (1 << CGEventType.leftMouseDown.rawValue) |
                                      (1 << CGEventType.leftMouseUp.rawValue) |
@@ -249,4 +253,3 @@ class ThreeFingerClickManager: ObservableObject {
         return Unmanaged.passUnretained(event)
     }
 }
-

@@ -2,7 +2,7 @@ import AppKit
 
 extension NSImage {
     func thumbnail(maxSize: CGFloat) -> NSImage {
-        let originalSize = self.size
+        let originalSize = normalizedSize
         guard originalSize.width > maxSize || originalSize.height > maxSize else {
             return self
         }
@@ -22,5 +22,15 @@ extension NSImage {
         thumbnail.unlockFocus()
         
         return thumbnail
+    }
+
+    private var normalizedSize: NSSize {
+        guard size.width <= 0 || size.height <= 0,
+              let cgImage = cgImage(forProposedRect: nil, context: nil, hints: nil)
+        else {
+            return size
+        }
+
+        return NSSize(width: cgImage.width, height: cgImage.height)
     }
 }

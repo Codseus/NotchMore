@@ -98,10 +98,12 @@ struct GeneralSettingsView: View {
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("hoverDelay") private var hoverDelay = 0.0
     // Permissions state
-    @State private var accessibilityGranted: Bool = GeneralSettingsView.currentAccessibilityTrust()
+    @State private var accessibilityGranted: Bool =
+        PermissionManager.isGranted(.accessibility)
     @State private var inputMonitoringGranted: Bool =
-        GeneralSettingsView.canCreateInputMonitoringTap()
-    @State private var screenRecordingGranted: Bool = CGPreflightScreenCaptureAccess()
+        PermissionManager.isGranted(.inputMonitoring)
+    @State private var screenRecordingGranted: Bool =
+        PermissionManager.isGranted(.screenRecording)
 
     var body: some View {
         ScrollView {
@@ -145,12 +147,12 @@ struct GeneralSettingsView: View {
                                 .foregroundColor(.secondary)
                             }
 
-                            Button("Open Settings") {
-                                if let url = URL(
-                                    string:
-                                        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-                                ) {
-                                    NSWorkspace.shared.open(url)
+                            Button(accessibilityGranted ? "Open Settings" : "Request") {
+                                if accessibilityGranted {
+                                    PermissionManager.openSettings(for: .accessibility)
+                                } else {
+                                    _ = PermissionManager.request(.accessibility)
+                                    refreshPermissionsSoon()
                                 }
                             }
                             .buttonStyle(.borderedProminent)
@@ -174,12 +176,12 @@ struct GeneralSettingsView: View {
                                 .foregroundColor(.secondary)
                             }
 
-                            Button("Open Settings") {
-                                if let url = URL(
-                                    string:
-                                        "x-apple.systempreferences:com.apple.preference.security?Privacy_InputMonitoring"
-                                ) {
-                                    NSWorkspace.shared.open(url)
+                            Button(inputMonitoringGranted ? "Open Settings" : "Request") {
+                                if inputMonitoringGranted {
+                                    PermissionManager.openSettings(for: .inputMonitoring)
+                                } else {
+                                    _ = PermissionManager.request(.inputMonitoring)
+                                    refreshPermissionsSoon()
                                 }
                             }
                             .buttonStyle(.borderedProminent)
@@ -203,12 +205,12 @@ struct GeneralSettingsView: View {
                                 .foregroundColor(.secondary)
                             }
 
-                            Button("Open Settings") {
-                                if let url = URL(
-                                    string:
-                                        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording"
-                                ) {
-                                    NSWorkspace.shared.open(url)
+                            Button(screenRecordingGranted ? "Open Settings" : "Request") {
+                                if screenRecordingGranted {
+                                    PermissionManager.openSettings(for: .screenRecording)
+                                } else {
+                                    _ = PermissionManager.request(.screenRecording)
+                                    refreshPermissionsSoon()
                                 }
                             }
                             .buttonStyle(.borderedProminent)
@@ -216,9 +218,7 @@ struct GeneralSettingsView: View {
 
                         HStack {
                             Button("Refresh") {
-                                accessibilityGranted = Self.currentAccessibilityTrust()
-                                inputMonitoringGranted = Self.canCreateInputMonitoringTap()
-                                screenRecordingGranted = CGPreflightScreenCaptureAccess()
+                                refreshPermissions()
                             }
                             Spacer()
                         }
@@ -236,29 +236,19 @@ struct GeneralSettingsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private static func currentAccessibilityTrust() -> Bool {
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        let options = [promptKey: false] as CFDictionary
-        return AXIsProcessTrustedWithOptions(options)
+    private func refreshPermissionsSoon() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            refreshPermissions()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            refreshPermissions()
+        }
     }
 
-    private static func canCreateInputMonitoringTap() -> Bool {
-        let mask = (1 << CGEventType.keyDown.rawValue)
-        guard
-            let tap = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
-                place: .headInsertEventTap,
-                options: .listenOnly,
-                eventsOfInterest: CGEventMask(mask),
-                callback: { _, _, event, _ in Unmanaged.passRetained(event) },
-                userInfo: nil
-            )
-        else {
-            return false
-        }
-
-        CFMachPortInvalidate(tap)
-        return true
+    private func refreshPermissions() {
+        accessibilityGranted = PermissionManager.isGranted(.accessibility)
+        inputMonitoringGranted = PermissionManager.isGranted(.inputMonitoring)
+        screenRecordingGranted = PermissionManager.isGranted(.screenRecording)
     }
 }
 
@@ -271,7 +261,9 @@ struct FunctionsSettingsView: View {
     @AppStorage("invertMouseScroll") private var invertMouseScroll = false
     @AppStorage("invertTrackpadScroll") private var invertTrackpadScroll = false
     @AppStorage("enableWindowSwitcher") private var enableWindowSwitcher = false
+    @AppStorage("enableDockPreviews") private var enableDockPreviews = false
     @AppStorage("enableFileShelf") private var enableFileShelf = false
+    @AppStorage("enableCapsLockNoDelay") private var enableCapsLockNoDelay = false
     @AppStorage("windowSwitcherUseCommandTab") private var useCommandTab = false
     @AppStorage("enableRestEyes") private var enableRestEyes = false
     @AppStorage("restIntervalMinutes") private var restIntervalMinutes = 20
@@ -348,11 +340,34 @@ struct FunctionsSettingsView: View {
                     }
                 }
 
+                SettingsCard(title: "Dock Previews") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        SettingsToggleRow(
+                            subtitle: "Hover Dock apps to preview and activate their windows.",
+                            isOn: $enableDockPreviews
+                        )
+
+                        Text("Requires Accessibility and Screen Recording permissions.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
                 SettingsCard(title: "Paste without Formatting") {
                     SettingsToggleRow(
                         subtitle: "Automatically strips formatting when pasting with ⌘V.",
                         isOn: $enablePasteWithoutFormatting
                     )
+                }
+
+                SettingsCard(title: "Caps Lock No Delay") {
+                    SettingsToggleRow(
+                        subtitle: "Make Caps Lock respond immediately instead of waiting for macOS' long press delay.",
+                        isOn: $enableCapsLockNoDelay
+                    )
+                    Text("Uses macOS' built-in CapsLockDelayOverride HID setting.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
                 SettingsCard(title: "Rest Eyes") {
@@ -405,10 +420,26 @@ struct FunctionsSettingsView: View {
             if !clipboardLimitOptions.contains(clipboardHistoryLimit) {
                 clipboardHistoryLimit = 10
             }
+            if restIntervalMinutes < 5 {
+                restIntervalMinutes = 20
+            }
+            if restDurationSeconds < 10 {
+                restDurationSeconds = 20
+            }
         }
         .onChange(of: clipboardHistoryLimit) { _, value in
             if !clipboardLimitOptions.contains(value) {
                 clipboardHistoryLimit = 10
+            }
+        }
+        .onChange(of: restIntervalMinutes) { _, value in
+            if value < 5 {
+                restIntervalMinutes = 20
+            }
+        }
+        .onChange(of: restDurationSeconds) { _, value in
+            if value < 10 {
+                restDurationSeconds = 20
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -544,43 +575,16 @@ struct InfoView: View {
             Divider()
                 .padding(.horizontal)
 
-            if updateManager.isChecking {
-                ProgressView("Checking for updates...")
-            } else {
-                if updateManager.isUpdateAvailable {
-                    VStack(spacing: 10) {
-                        Text("A new version is available: \(updateManager.latestVersion)")
-                            .font(.headline)
-                            .foregroundColor(.green)
+            VStack(spacing: 10) {
+                Text("Automatic updates are handled by Sparkle.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
 
-                        Text(updateManager.releaseNotes)
-                            .font(.caption)
-                            .lineLimit(3)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-
-                        Button("Download Update") {
-                            updateManager.downloadUpdate()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                } else {
-                    VStack(spacing: 10) {
-                        Text("You're up to date!")
-                            .foregroundColor(.secondary)
-
-                        if let error = updateManager.errorMessage {
-                            Text(error)
-                                .foregroundColor(.red)
-                                .font(.caption)
-                                .multilineTextAlignment(.center)
-                        }
-
-                        Button("Check for Updates") {
-                            updateManager.checkForUpdates(manual: true)
-                        }
-                    }
+                Button("Check for Updates...") {
+                    updateManager.checkForUpdates()
                 }
+                .buttonStyle(.borderedProminent)
+                .disabled(!updateManager.canCheckForUpdates)
             }
 
             Spacer()

@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		474F69FE2E55532700C5A79C /* MediaRemoteAdapter in Frameworks */ = {isa = PBXBuildFile; productRef = 474F69FD2E55532700C5A79C /* MediaRemoteAdapter */; };
 		474F69FF2E55535600C5A79C /* MediaRemoteAdapter in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 474F69FD2E55532700C5A79C /* MediaRemoteAdapter */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		47A100012FEA700100C5A79C /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 47A100032FEA700100C5A79C /* Sparkle */; };
 		47C9D0012FEA600100C5A79C /* DynamicNotchKit in Frameworks */ = {isa = PBXBuildFile; productRef = 47C9D0002FEA600100C5A79C /* DynamicNotchKit */; };
 /* End PBXBuildFile section */
 
@@ -27,7 +28,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4755E6BB2E552CAF002F67F0 /* NotchMore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchMore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4755E6BB2E552CAF002F67F0 /* NotchMore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = NotchMore.app; path = NotchMoreDebug.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -45,6 +46,7 @@
 			files = (
 				47C9D0012FEA600100C5A79C /* DynamicNotchKit in Frameworks */,
 				474F69FE2E55532700C5A79C /* MediaRemoteAdapter in Frameworks */,
+				47A100012FEA700100C5A79C /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,7 @@
 			packageProductDependencies = (
 				47C9D0002FEA600100C5A79C /* DynamicNotchKit */,
 				474F69FD2E55532700C5A79C /* MediaRemoteAdapter */,
+				47A100032FEA700100C5A79C /* Sparkle */,
 			);
 			productName = NotchMore;
 			productReference = 4755E6BB2E552CAF002F67F0 /* NotchMore.app */;
@@ -122,6 +125,7 @@
 			packageReferences = (
 				47C9D0022FEA600100C5A79C /* XCRemoteSwiftPackageReference "DynamicNotchKit" */,
 				474F69FC2E55532700C5A79C /* XCRemoteSwiftPackageReference "mediaremote-adapter" */,
+				47A100042FEA700100C5A79C /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4755E6BC2E552CAF002F67F0 /* Products */;
@@ -284,7 +288,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 22DW3H89N4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -294,17 +298,22 @@
 				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_KEY_CFBundleDisplayName = "NotchMore Debug";
+				INFOPLIST_KEY_CFBundleName = "NotchMore Debug";
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/Codseus/NotchMore/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "bntflI5DpbCxg8QTjw8lLEpGk3cpeIXpdilB1Enr8rY=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.4;
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = codseus.NotchMore;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				MARKETING_VERSION = 1.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = codseus.NotchMore.Debug;
+				PRODUCT_NAME = NotchMoreDebug;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
@@ -329,7 +338,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = 22DW3H89N4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -339,15 +348,18 @@
 				ENABLE_RESOURCE_ACCESS_CONTACTS = NO;
 				ENABLE_RESOURCE_ACCESS_LOCATION = NO;
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_SUFeedURL = "https://raw.githubusercontent.com/Codseus/NotchMore/main/appcast.xml";
+				INFOPLIST_KEY_SUPublicEDKey = "bntflI5DpbCxg8QTjw8lLEpGk3cpeIXpdilB1Enr8rY=";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.4;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = codseus.NotchMore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -403,6 +415,14 @@
 				version = 1.0.0;
 			};
 		};
+		47A100042FEA700100C5A79C /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.9.3;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -415,6 +435,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 47C9D0022FEA600100C5A79C /* XCRemoteSwiftPackageReference "DynamicNotchKit" */;
 			productName = DynamicNotchKit;
+		};
+		47A100032FEA700100C5A79C /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 47A100042FEA700100C5A79C /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

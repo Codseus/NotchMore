@@ -10,6 +10,11 @@ enum RestState {
 }
 
 class RestManager: ObservableObject {
+    private static let minimumIntervalMinutes = 5
+    private static let defaultIntervalMinutes = 20
+    private static let minimumDurationSeconds = 10
+    private static let defaultDurationSeconds = 20
+
     @Published var state: RestState = .idle
     @Published var timeRemaining: TimeInterval = 0
     
@@ -20,14 +25,23 @@ class RestManager: ObservableObject {
             updateState()
         }
     }
-    @AppStorage("restIntervalMinutes") var restIntervalMinutes: Int = 20 { // Time between breaks
+    @AppStorage("restIntervalMinutes") var restIntervalMinutes: Int = defaultIntervalMinutes { // Time between breaks
         didSet {
+            guard restIntervalMinutes >= Self.minimumIntervalMinutes else {
+                restIntervalMinutes = Self.defaultIntervalMinutes
+                return
+            }
             print("RestManager: restIntervalMinutes changed to \(restIntervalMinutes)")
             restartTimer()
         }
     }
-    @AppStorage("restDurationSeconds") var restDurationSeconds: Int = 20 { // Duration of break
-        didSet { /* No immediate action needed */ }
+    @AppStorage("restDurationSeconds") var restDurationSeconds: Int = defaultDurationSeconds { // Duration of break
+        didSet {
+            guard restDurationSeconds >= Self.minimumDurationSeconds else {
+                restDurationSeconds = Self.defaultDurationSeconds
+                return
+            }
+        }
     }
     
     private var timer: Timer?
@@ -35,6 +49,8 @@ class RestManager: ObservableObject {
     private var observers: [AnyCancellable] = []
 
     init() {
+        sanitizeStoredSettings()
+
         UserDefaults.standard.publisher(for: \.enableRestEyes)
             .sink { [weak self] val in
                 self?.enableRestEyes = val
@@ -44,12 +60,31 @@ class RestManager: ObservableObject {
             
         UserDefaults.standard.publisher(for: \.restIntervalMinutes)
             .sink { [weak self] val in
-                self?.restIntervalMinutes = val
+                let interval = max(val, Self.minimumIntervalMinutes)
+                if interval != val {
+                    UserDefaults.standard.set(Self.defaultIntervalMinutes, forKey: "restIntervalMinutes")
+                    return
+                }
+                self?.restIntervalMinutes = interval
                 self?.restartTimer()
             }
             .store(in: &observers)
             
         updateState()
+    }
+
+    private func sanitizeStoredSettings() {
+        if UserDefaults.standard.integer(forKey: "restIntervalMinutes") < Self.minimumIntervalMinutes
+        {
+            UserDefaults.standard.set(Self.defaultIntervalMinutes, forKey: "restIntervalMinutes")
+            restIntervalMinutes = Self.defaultIntervalMinutes
+        }
+
+        if UserDefaults.standard.integer(forKey: "restDurationSeconds") < Self.minimumDurationSeconds
+        {
+            UserDefaults.standard.set(Self.defaultDurationSeconds, forKey: "restDurationSeconds")
+            restDurationSeconds = Self.defaultDurationSeconds
+        }
     }
     
     func updateState() {
@@ -117,11 +152,13 @@ class RestManager: ObservableObject {
     
     private func enterWarning() {
         state = .warning
+        SystemHUDManager.shared.showRestWarning(secondsRemaining: Int(max(timeRemaining, 0)))
     }
     
     private func enterRest() {
         state = .resting
         timeRemaining = TimeInterval(restDurationSeconds)
+        SystemHUDManager.shared.showRestStarted(seconds: restDurationSeconds)
     }
     
     private func finishRest() {
@@ -135,6 +172,7 @@ class RestManager: ObservableObject {
         if state == .warning {
             state = .working
             timeRemaining += 60
+            SystemHUDManager.shared.showRestSkipped()
         } else if state == .working {
             timeRemaining += 60
         }
@@ -142,12 +180,14 @@ class RestManager: ObservableObject {
     
     func skipBreak() {
         // Skip this specific break and start a new work cycle
+        SystemHUDManager.shared.showRestSkipped()
         startWorkSession()
     }
     
     func skipRest() {
         // If currently resting, stop resting and start work
         if state == .resting {
+            SystemHUDManager.shared.showRestSkipped()
             startWorkSession()
         }
     }
