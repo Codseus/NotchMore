@@ -17,7 +17,7 @@ class MediaManager: ObservableObject {
     private let mediaController = MediaController()
     private var artworkCache: [String: NSImage] = [:]
     private var artworkCacheOrder: [String] = []
-    private var lastArtworkDebugIdentity: String?
+    private var lastArtworkKey: String?
     private let maxArtworkCacheItems = 8
 
     init() {
@@ -114,20 +114,29 @@ class MediaManager: ObservableObject {
         let appName = trackInfo.payload.applicationName ?? appName(for: bundleIdentifier) ?? "Media"
         let sourceID = bundleIdentifier ?? appName
         let trackIdentity = [sourceID, title, artist, album].joined(separator: "\u{1f}")
+        let fallbackTrackIdentity = [sourceID, title, artist].joined(separator: "\u{1f}")
 
         let thumbnail: NSImage?
-        if let originalArtwork = artworkImage(from: trackInfo) {
+        if isNoMediaUpdate(title: title, artist: artist, isPlaying: isPlaying) {
+            thumbnail = nil
+            lastArtworkKey = nil
+        } else if let originalArtwork = artworkImage(from: trackInfo) {
             thumbnail = originalArtwork.thumbnail(maxSize: NotchConstants.artworkThumbnailSize)
             if let thumbnail {
                 cacheArtwork(thumbnail, for: trackIdentity)
+                cacheArtwork(thumbnail, for: fallbackTrackIdentity)
+                lastArtworkKey = fallbackTrackIdentity
             }
-            logArtworkStateIfNeeded(trackIdentity: trackIdentity, source: "received")
         } else if let cachedArtwork = artworkCache[trackIdentity] {
             thumbnail = cachedArtwork
-            logArtworkStateIfNeeded(trackIdentity: trackIdentity, source: "cache")
+            lastArtworkKey = fallbackTrackIdentity
+        } else if let cachedArtwork = artworkCache[fallbackTrackIdentity] {
+            thumbnail = cachedArtwork
+            lastArtworkKey = fallbackTrackIdentity
+        } else if shouldRetainCurrentArtwork(for: fallbackTrackIdentity, title: title, artist: artist, sourceName: appName) {
+            thumbnail = artwork
         } else {
             thumbnail = nil
-            logArtworkStateIfNeeded(trackIdentity: trackIdentity, source: "missing")
         }
 
         let duration = (trackInfo.payload.durationMicros ?? 0) / 1_000_000
@@ -150,14 +159,15 @@ class MediaManager: ObservableObject {
 
     private func artworkImage(from trackInfo: TrackInfo) -> NSImage? {
         if let artwork = trackInfo.payload.artwork {
-            return artwork
+            return artwork.hasRenderableImage ? artwork : nil
         }
 
         guard let base64 = trackInfo.payload.artworkDataBase64,
             let data = Data(base64Encoded: base64)
         else { return nil }
 
-        return NSImage(data: data)
+        guard let image = NSImage(data: data), image.hasRenderableImage else { return nil }
+        return image
     }
 
     private func appIcon(for bundleIdentifier: String?) -> NSImage? {
@@ -201,10 +211,22 @@ class MediaManager: ObservableObject {
         }
     }
 
-    private func logArtworkStateIfNeeded(trackIdentity: String, source: String) {
-        guard lastArtworkDebugIdentity != "\(trackIdentity)\u{1f}\(source)" else { return }
-        lastArtworkDebugIdentity = "\(trackIdentity)\u{1f}\(source)"
-        print("MediaManager artwork \(source) for \(currentTrackTitle) - \(currentTrackArtist)")
+    private func shouldRetainCurrentArtwork(
+        for artworkKey: String,
+        title: String,
+        artist: String,
+        sourceName: String
+    ) -> Bool {
+        guard artwork != nil else { return false }
+
+        return lastArtworkKey == artworkKey
+            || (currentTrackTitle == title
+                && currentTrackArtist == artist
+                && self.sourceName == sourceName)
+    }
+
+    private func isNoMediaUpdate(title: String, artist: String, isPlaying: Bool) -> Bool {
+        !isPlaying && title == "Not Playing" && artist == "No media detected"
     }
 
     private func formatTime(_ seconds: Double) -> String {

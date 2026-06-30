@@ -158,13 +158,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func layoutWindowSwitcherWindow(_ window: NSWindow) {
-        guard let contentView = window.contentView else { return }
-
-        let size = contentView.fittingSize
+        let size = CGSize(
+            width: WindowSwitcherLayout.width(
+                forWindowCount: max(1, WindowSwitcherManager.shared.windows.count)
+            ),
+            height: WindowSwitcherLayout.height
+        )
         let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let x = (screenFrame.width - size.width) / 2
         let y = (screenFrame.height - size.height) / 2
-        window.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: false)
+        setFrameIfNeeded(
+            NSRect(x: x, y: y, width: size.width, height: size.height),
+            for: window
+        )
     }
 
     private func setupDockPreviewWindow() {
@@ -188,9 +194,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func layoutDockPreviewWindow(_ window: NSWindow) {
-        guard let contentView = window.contentView else { return }
-
-        let size = contentView.fittingSize
+        let visibleCount = DockPreviewManager.shared.windows.isEmpty
+            ? 1
+            : DockPreviewManager.shared.windows.count
+        let maxWidth = (NSScreen.main?.visibleFrame.width ?? 1200) * 0.9
+        let size = CGSize(
+            width: min(DockPreviewLayout.width(forWindowCount: visibleCount), maxWidth),
+            height: DockPreviewLayout.height
+        )
         let anchorFrame = DockPreviewManager.shared.anchorFrame
         let anchor = anchorFrame.isEmpty
             ? DockPreviewManager.shared.anchorPoint
@@ -228,8 +239,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let frame = NSRect(x: x, y: y, width: size.width, height: size.height)
-        window.setFrame(frame, display: false)
+        setFrameIfNeeded(frame, for: window)
         DockPreviewManager.shared.setPreviewWindowFrame(frame)
+    }
+
+    private func setFrameIfNeeded(_ frame: NSRect, for window: NSWindow) {
+        guard !window.frame.equalTo(frame) else { return }
+        window.setFrame(frame, display: false)
     }
 
     private func setupWindows() {
@@ -388,18 +404,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self, let window = self.windowSwitcherWindow else { return }
                 if visible {
                     self.lastWindowSwitcherIDs = WindowSwitcherManager.shared.windows.map(\.id)
-                    self.layoutWindowSwitcherWindow(window)
-                    window.alphaValue = 0
-                    window.orderFrontRegardless()
-                    NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0.1
-                        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                        window.animator().alphaValue = 1
+                    DispatchQueue.main.async {
+                        self.layoutWindowSwitcherWindow(window)
+                        window.alphaValue = 0
+                        window.orderFrontRegardless()
+                        NSAnimationContext.runAnimationGroup { context in
+                            context.duration = 0.1
+                            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                            window.animator().alphaValue = 1
+                        }
                     }
                 } else {
-                    self.lastWindowSwitcherIDs = []
-                    window.alphaValue = 0
-                    window.orderOut(nil)
+                    DispatchQueue.main.async {
+                        self.lastWindowSwitcherIDs = []
+                        window.alphaValue = 0
+                        window.orderOut(nil)
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -409,17 +429,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] visible in
                 guard let self = self, let window = self.dockPreviewWindow else { return }
                 if visible {
-                    self.layoutDockPreviewWindow(window)
-                    window.alphaValue = 0
-                    window.orderFrontRegardless()
-                    NSAnimationContext.runAnimationGroup { context in
-                        context.duration = 0.08
-                        context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-                        window.animator().alphaValue = 1
+                    DispatchQueue.main.async {
+                        self.layoutDockPreviewWindow(window)
+                        window.alphaValue = 0
+                        window.orderFrontRegardless()
+                        NSAnimationContext.runAnimationGroup { context in
+                            context.duration = 0.08
+                            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                            window.animator().alphaValue = 1
+                        }
                     }
                 } else {
-                    window.alphaValue = 0
-                    window.orderOut(nil)
+                    DispatchQueue.main.async {
+                        window.alphaValue = 0
+                        window.orderOut(nil)
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -596,14 +620,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func updateLaunchAtLogin() {
         if #available(macOS 13.0, *) {
+            let service = SMAppService.mainApp
+
             do {
                 if launchAtLogin {
-                    try SMAppService.mainApp.register()
+                    guard service.status != .enabled else { return }
+                    try service.register()
                 } else {
-                    try SMAppService.mainApp.unregister()
+                    guard service.status == .enabled else { return }
+                    try service.unregister()
                 }
             } catch {
+                #if DEBUG
                 print("Failed to update login item: \(error)")
+                #endif
             }
         }
     }

@@ -107,17 +107,24 @@ final class DockPreviewManager: ObservableObject {
     private func pollMouseLocation() {
         let mouse = NSEvent.mouseLocation
 
+        guard isLikelyNearDock(mouse) else {
+            if isPreviewVisible, isPointerInPreviewInteractionArea(mouse) {
+                hideWorkItem?.cancel()
+                hideWorkItem = nil
+                return
+            }
+
+            hoveredDockIdentifier = nil
+            hoverWorkItem?.cancel()
+            scheduleHidePreview()
+            return
+        }
+
         guard let hoveredApp = dockAppUnderMouse(at: mouse) else {
             if isDockItemUnderMouse(at: mouse) {
                 hoveredDockIdentifier = nil
                 hoverWorkItem?.cancel()
                 hidePreview()
-                return
-            }
-
-            if isPreviewVisible, isPointerInPreviewInteractionArea(mouse) {
-                hideWorkItem?.cancel()
-                hideWorkItem = nil
                 return
             }
 

@@ -62,10 +62,11 @@ class ScrollManager: ObservableObject {
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        print("Scroll monitoring started")
     }
     
     func stopMonitoring() {
+        guard runLoopSource != nil || eventTap != nil else { return }
+
         if let runLoopSource = runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
             self.runLoopSource = nil
@@ -74,7 +75,6 @@ class ScrollManager: ObservableObject {
             CGEvent.tapEnable(tap: eventTap, enable: false)
             self.eventTap = nil
         }
-        print("Scroll monitoring stopped")
     }
 
     fileprivate func handle(event: CGEvent) -> Unmanaged<CGEvent>? {

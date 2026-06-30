@@ -3,29 +3,27 @@ import SwiftUI
 struct WindowSwitcherView: View {
     @ObservedObject var manager = WindowSwitcherManager.shared
 
-    private let cardWidth: CGFloat = 200
-    private let gridSpacing: CGFloat = 20
-    private let sidePadding: CGFloat = 28
-
     private var maxSwitcherWidth: CGFloat {
-        let screenWidth = NSScreen.main?.visibleFrame.width ?? 1200
-        return min(screenWidth * 0.88, 1280)
+        WindowSwitcherLayout.maxWidth
     }
 
     private var switcherWidth: CGFloat {
         let columns = CGFloat(columnCount)
-        let contentWidth = (columns * cardWidth) + (max(columns - 1, 0) * gridSpacing)
-        return min(maxSwitcherWidth, contentWidth + (sidePadding * 2))
+        let contentWidth = (columns * WindowSwitcherLayout.cardWidth)
+            + (max(columns - 1, 0) * WindowSwitcherLayout.gridSpacing)
+        return min(maxSwitcherWidth, contentWidth + (WindowSwitcherLayout.sidePadding * 2))
     }
 
     private var switcherHeight: CGFloat {
-        let screenHeight = NSScreen.main?.visibleFrame.height ?? 900
-        return min(screenHeight * 0.72, 760)
+        WindowSwitcherLayout.height
     }
 
     private var maxColumnCount: Int {
-        let availableContentWidth = maxSwitcherWidth - (sidePadding * 2)
-        let fittedColumns = Int((availableContentWidth + gridSpacing) / (cardWidth + gridSpacing))
+        let availableContentWidth = maxSwitcherWidth - (WindowSwitcherLayout.sidePadding * 2)
+        let fittedColumns = Int(
+            (availableContentWidth + WindowSwitcherLayout.gridSpacing)
+                / (WindowSwitcherLayout.cardWidth + WindowSwitcherLayout.gridSpacing)
+        )
         return max(1, fittedColumns)
     }
 
@@ -34,7 +32,14 @@ struct WindowSwitcherView: View {
     }
 
     private var gridColumns: [GridItem] {
-        Array(repeating: GridItem(.fixed(cardWidth), spacing: gridSpacing, alignment: .top), count: columnCount)
+        Array(
+            repeating: GridItem(
+                .fixed(WindowSwitcherLayout.cardWidth),
+                spacing: WindowSwitcherLayout.gridSpacing,
+                alignment: .top
+            ),
+            count: columnCount
+        )
     }
 
     private var selectedWindowID: CGWindowID? {
@@ -48,7 +53,7 @@ struct WindowSwitcherView: View {
                 LazyVGrid(
                     columns: gridColumns,
                     alignment: .center,
-                    spacing: gridSpacing
+                    spacing: WindowSwitcherLayout.gridSpacing
                 ) {
                     ForEach(manager.windows, id: \.id) { window in
                         VStack {
@@ -92,7 +97,7 @@ struct WindowSwitcherView: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(selectedWindowID == window.id ? Color.accentColor : Color.clear, lineWidth: 3)
                         )
-                        .frame(width: 200)
+                        .frame(width: WindowSwitcherLayout.cardWidth)
                         .contentShape(Rectangle())
                         .onTapGesture {
                             if let tappedIndex = manager.windows.firstIndex(where: { $0.id == window.id }) {
@@ -104,7 +109,7 @@ struct WindowSwitcherView: View {
                         .id(window.id)
                     }
                 }
-                .padding(.horizontal, sidePadding)
+                .padding(.horizontal, WindowSwitcherLayout.sidePadding)
                 .padding(.vertical, 30)
             }
             .frame(width: switcherWidth)
@@ -115,8 +120,35 @@ struct WindowSwitcherView: View {
                 }
             }
         }
-        .background(VisualEffectView(material: .hudWindow, blendingMode: .behindWindow).cornerRadius(20))
+        .background(
+            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        )
         .shadow(radius: 20)
+    }
+}
+
+enum WindowSwitcherLayout {
+    static let cardWidth: CGFloat = 200
+    static let gridSpacing: CGFloat = 20
+    static let sidePadding: CGFloat = 28
+
+    static var maxWidth: CGFloat {
+        let screenWidth = NSScreen.main?.visibleFrame.width ?? 1200
+        return min(screenWidth * 0.88, 1280)
+    }
+
+    static var height: CGFloat {
+        let screenHeight = NSScreen.main?.visibleFrame.height ?? 900
+        return min(screenHeight * 0.72, 760)
+    }
+
+    static func width(forWindowCount count: Int) -> CGFloat {
+        let availableContentWidth = maxWidth - (sidePadding * 2)
+        let fittedColumns = Int((availableContentWidth + gridSpacing) / (cardWidth + gridSpacing))
+        let columns = CGFloat(max(1, min(count, max(1, fittedColumns))))
+        let contentWidth = (columns * cardWidth) + (max(columns - 1, 0) * gridSpacing)
+        return min(maxWidth, contentWidth + (sidePadding * 2))
     }
 }
 

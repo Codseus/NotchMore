@@ -4,19 +4,12 @@ struct DockPreviewView: View {
     @ObservedObject var manager = DockPreviewManager.shared
     @State private var hoveredWindowID: CGWindowID?
 
-    private let cardWidth: CGFloat = 180
-    private let previewHeight: CGFloat = 104
-    private let spacing: CGFloat = 12
-    private let sidePadding: CGFloat = 14
-    private var cardOuterWidth: CGFloat { cardWidth + 16 }
-
     private var visibleWindows: [DockPreviewManager.PreviewWindow] {
         Array(manager.windows.prefix(8))
     }
 
     private var contentWidth: CGFloat {
-        let count = max(1, visibleWindows.count)
-        return CGFloat(count) * cardOuterWidth + CGFloat(max(0, count - 1)) * spacing + sidePadding * 2
+        DockPreviewLayout.width(forWindowCount: visibleWindows.count)
     }
 
     var body: some View {
@@ -43,16 +36,16 @@ struct DockPreviewView: View {
                 HeaderActionButton(systemName: "power", action: manager.quitHoveredApplication)
                     .help("Quit \(manager.hoveredAppName)")
             }
-            .padding(.horizontal, sidePadding)
+            .padding(.horizontal, DockPreviewLayout.sidePadding)
             .padding(.top, 12)
 
-            HStack(alignment: .top, spacing: spacing) {
+            HStack(alignment: .top, spacing: DockPreviewLayout.spacing) {
                 ForEach(visibleWindows) { window in
                     DockPreviewCard(
                         window: window,
                         isHovered: hoveredWindowID == window.id,
-                        width: cardWidth,
-                        previewHeight: previewHeight,
+                        width: DockPreviewLayout.cardWidth,
+                        previewHeight: DockPreviewLayout.previewHeight,
                         onActivate: { manager.activate(window) },
                         onClose: { manager.close(window) },
                         onMinimize: { manager.minimize(window) },
@@ -63,7 +56,7 @@ struct DockPreviewView: View {
                     }
                 }
             }
-            .padding(.horizontal, sidePadding)
+            .padding(.horizontal, DockPreviewLayout.sidePadding)
             .padding(.bottom, 12)
         }
         .frame(width: min(contentWidth, (NSScreen.main?.visibleFrame.width ?? 1200) * 0.9))
@@ -76,6 +69,35 @@ struct DockPreviewView: View {
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+    }
+}
+
+enum DockPreviewLayout {
+    static let cardWidth: CGFloat = 180
+    static let previewHeight: CGFloat = 104
+    static let spacing: CGFloat = 12
+    static let sidePadding: CGFloat = 14
+    static let headerHeight: CGFloat = 42
+    static let bottomPadding: CGFloat = 12
+    static let cardVerticalPadding: CGFloat = 16
+    static let cardTitleHeight: CGFloat = 32
+    static let cardControlHeight: CGFloat = 13
+    static let cardInnerSpacing: CGFloat = 8
+
+    static var cardOuterWidth: CGFloat {
+        cardWidth + cardVerticalPadding
+    }
+
+    static var height: CGFloat {
+        headerHeight + cardControlHeight + cardInnerSpacing + previewHeight + cardInnerSpacing
+            + cardTitleHeight + cardVerticalPadding + bottomPadding
+    }
+
+    static func width(forWindowCount count: Int) -> CGFloat {
+        let visibleCount = max(1, min(count, 8))
+        return CGFloat(visibleCount) * cardOuterWidth
+            + CGFloat(max(0, visibleCount - 1)) * spacing
+            + sidePadding * 2
     }
 }
 

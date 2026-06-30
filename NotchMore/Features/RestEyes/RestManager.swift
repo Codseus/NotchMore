@@ -19,30 +19,9 @@ class RestManager: ObservableObject {
     @Published var timeRemaining: TimeInterval = 0
     
     // Settings
-    @AppStorage("enableRestEyes") var enableRestEyes: Bool = false {
-        didSet {
-            print("RestManager: enableRestEyes changed to \(enableRestEyes)")
-            updateState()
-        }
-    }
-    @AppStorage("restIntervalMinutes") var restIntervalMinutes: Int = defaultIntervalMinutes { // Time between breaks
-        didSet {
-            guard restIntervalMinutes >= Self.minimumIntervalMinutes else {
-                restIntervalMinutes = Self.defaultIntervalMinutes
-                return
-            }
-            print("RestManager: restIntervalMinutes changed to \(restIntervalMinutes)")
-            restartTimer()
-        }
-    }
-    @AppStorage("restDurationSeconds") var restDurationSeconds: Int = defaultDurationSeconds { // Duration of break
-        didSet {
-            guard restDurationSeconds >= Self.minimumDurationSeconds else {
-                restDurationSeconds = Self.defaultDurationSeconds
-                return
-            }
-        }
-    }
+    @AppStorage("enableRestEyes") var enableRestEyes: Bool = false
+    @AppStorage("restIntervalMinutes") var restIntervalMinutes: Int = defaultIntervalMinutes
+    @AppStorage("restDurationSeconds") var restDurationSeconds: Int = defaultDurationSeconds
     
     private var timer: Timer?
     private var warningDuration: TimeInterval = 10
@@ -52,19 +31,25 @@ class RestManager: ObservableObject {
         sanitizeStoredSettings()
 
         UserDefaults.standard.publisher(for: \.enableRestEyes)
+            .dropFirst()
+            .removeDuplicates()
             .sink { [weak self] val in
+                guard self?.enableRestEyes != val else { return }
                 self?.enableRestEyes = val
                 self?.updateState()
             }
             .store(in: &observers)
             
         UserDefaults.standard.publisher(for: \.restIntervalMinutes)
+            .dropFirst()
+            .removeDuplicates()
             .sink { [weak self] val in
                 let interval = max(val, Self.minimumIntervalMinutes)
                 if interval != val {
                     UserDefaults.standard.set(Self.defaultIntervalMinutes, forKey: "restIntervalMinutes")
                     return
                 }
+                guard self?.restIntervalMinutes != interval else { return }
                 self?.restIntervalMinutes = interval
                 self?.restartTimer()
             }
@@ -89,10 +74,8 @@ class RestManager: ObservableObject {
     
     func updateState() {
         if enableRestEyes {
-            print("RestManager: Starting work session")
             startWorkSession()
         } else {
-            print("RestManager: Stopping")
             stop()
         }
     }
@@ -106,13 +89,11 @@ class RestManager: ObservableObject {
     private func startWorkSession() {
         state = .working
         timeRemaining = TimeInterval(restIntervalMinutes * 60)
-        print("RestManager: Work session started. Time remaining: \(timeRemaining)")
         startTimer()
     }
     
     private func restartTimer() {
         if enableRestEyes {
-            print("RestManager: Restarting timer")
             startWorkSession()
         }
     }
@@ -132,17 +113,14 @@ class RestManager: ObservableObject {
         switch state {
         case .working:
             if timeRemaining <= warningDuration {
-                print("RestManager: Entering warning state")
                 enterWarning()
             }
         case .warning:
             if timeRemaining <= 0 {
-                print("RestManager: Entering rest state")
                 enterRest()
             }
         case .resting:
             if timeRemaining <= 0 {
-                print("RestManager: Finishing rest")
                 finishRest()
             }
         case .idle:

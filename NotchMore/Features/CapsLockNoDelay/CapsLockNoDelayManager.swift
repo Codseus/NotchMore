@@ -20,7 +20,6 @@ final class CapsLockNoDelayManager {
             print("CapsLockNoDelayManager: failed to set CapsLockDelayOverride=\(delay)")
             return
         }
-        print("CapsLockNoDelayManager: set CapsLockDelayOverride=\(delay)")
     }
 
     @discardableResult
@@ -32,6 +31,8 @@ final class CapsLockNoDelayManager {
             "--set",
             "{\"CapsLockDelayOverride\":\(milliseconds)}",
         ]
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
 
         do {
             try process.run()

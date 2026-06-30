@@ -3,21 +3,19 @@ import Foundation
 import Sparkle
 
 @MainActor
-final class UpdateManager: NSObject, ObservableObject {
+final class UpdateManager: NSObject, ObservableObject, @preconcurrency SPUStandardUserDriverDelegate {
     static let shared = UpdateManager()
 
     @Published private(set) var canCheckForUpdates = false
 
-    private let updaterController: SPUStandardUpdaterController
+    private lazy var updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: self
+    )
     private var canCheckObservation: NSKeyValueObservation?
 
     private override init() {
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
-
         super.init()
 
         canCheckObservation = updaterController.updater.observe(
@@ -36,5 +34,9 @@ final class UpdateManager: NSObject, ObservableObject {
 
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
+    }
+
+    var supportsGentleScheduledUpdateReminders: Bool {
+        true
     }
 }

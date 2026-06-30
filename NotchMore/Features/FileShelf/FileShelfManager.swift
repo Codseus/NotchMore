@@ -48,8 +48,9 @@ struct ShelfFile: Identifiable, Equatable, Codable {
             
             if imageExtensions.contains(ext) {
                 self.type = .image
-                if let image = NSImage(contentsOf: url) {
+                if let image = NSImage(contentsOf: url),
                     let thumb = image.thumbnail(maxSize: NotchConstants.fileShelfThumbnailSize)
+                {
                     self.iconData = thumb.tiffRepresentation
                 } else {
                     let icon = NSWorkspace.shared.icon(forFile: url.path)

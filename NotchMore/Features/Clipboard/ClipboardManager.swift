@@ -153,8 +153,7 @@ class ClipboardManager: ObservableObject {
             let fileExtension = url.pathExtension.lowercased()
             
             if imageExtensions.contains(fileExtension), let image = NSImage(contentsOf: url) {
-                let thumbnail = image.thumbnail(maxSize: NotchConstants.clipboardThumbnailSize)
-                let imageData = thumbnail.tiffRepresentation ?? Data()
+                let imageData = thumbnailData(from: image)
                 let newItem = ClipboardItem(type: .image(imageData, name: url.lastPathComponent))
                 addItem(newItem)
                 return
@@ -174,8 +173,7 @@ class ClipboardManager: ObservableObject {
         }
         
         if let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
-            let thumbnail = image.thumbnail(maxSize: NotchConstants.clipboardThumbnailSize)
-            let imageData = thumbnail.tiffRepresentation ?? Data()
+            let imageData = thumbnailData(from: image)
             let newItem = ClipboardItem(type: .image(imageData, name: nil))
             addItem(newItem)
             return
@@ -193,6 +191,12 @@ class ClipboardManager: ObservableObject {
                 self.insertItem(newItem)
             }
         }
+    }
+
+    private func thumbnailData(from image: NSImage) -> Data {
+        image.thumbnail(maxSize: NotchConstants.clipboardThumbnailSize)?.tiffRepresentation
+            ?? image.tiffRepresentation
+            ?? Data()
     }
     
     private func addItem(_ item: ClipboardItem) {
