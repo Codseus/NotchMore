@@ -23,6 +23,7 @@ final class NotchPanelController {
     private var isHoveringPanel = false
     private var pendingHideWorkItem: DispatchWorkItem?
     private var pendingDragEndWorkItem: DispatchWorkItem?
+    private var pendingShowWorkItem: DispatchWorkItem?
     private var hoverValidationTimer: Timer?
     private var visibilityTask: Task<Void, Never>?
     private var wantsNotchVisible = false
@@ -54,6 +55,8 @@ final class NotchPanelController {
 
     func showNotch() {
         wantsNotchVisible = true
+        pendingShowWorkItem?.cancel()
+        pendingShowWorkItem = nil
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
         startHoverValidationTimer()
@@ -73,6 +76,8 @@ final class NotchPanelController {
 
     func hideNotch() {
         wantsNotchVisible = false
+        pendingShowWorkItem?.cancel()
+        pendingShowWorkItem = nil
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
         dynamicNotch?.windowController?.window?.ignoresMouseEvents = false
@@ -110,8 +115,14 @@ final class NotchPanelController {
         if shouldKeepNotchVisible {
             pendingHideWorkItem?.cancel()
             pendingHideWorkItem = nil
-            showNotch()
+            if shouldShowImmediately {
+                showNotch()
+            } else {
+                scheduleHoverShow()
+            }
         } else {
+            pendingShowWorkItem?.cancel()
+            pendingShowWorkItem = nil
             guard isDynamicNotchVisible else { return }
             guard pendingHideWorkItem == nil else { return }
 
@@ -150,6 +161,34 @@ final class NotchPanelController {
         }
         configureNotchWindowLevel()
         evaluateHoverState()
+    }
+
+    private var shouldShowImmediately: Bool {
+        isDraggingOverTrigger || isDraggingOverPanel || isDragSessionActive || isExternalInteractionActive
+    }
+
+    private func scheduleHoverShow() {
+        guard !isDynamicNotchVisible else { return }
+        guard pendingShowWorkItem == nil else { return }
+
+        let delay = max(0, hoverDelay())
+        guard delay > 0 else {
+            showNotch()
+            return
+        }
+
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.refreshPointerHoverState()
+                if self.shouldKeepNotchVisible {
+                    self.showNotch()
+                }
+                self.pendingShowWorkItem = nil
+            }
+        }
+        pendingShowWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
     }
 
     private func panelDraggingChanged(_ isDragging: Bool) {

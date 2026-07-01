@@ -15,7 +15,7 @@ struct WindowSwitcherView: View {
     }
 
     private var switcherHeight: CGFloat {
-        WindowSwitcherLayout.height
+        WindowSwitcherLayout.height(forWindowCount: manager.windows.count)
     }
 
     private var maxColumnCount: Int {
@@ -132,23 +132,40 @@ enum WindowSwitcherLayout {
     static let cardWidth: CGFloat = 200
     static let gridSpacing: CGFloat = 20
     static let sidePadding: CGFloat = 28
+    static let verticalPadding: CGFloat = 60
+    static let rowHeight: CGFloat = 184
 
     static var maxWidth: CGFloat {
         let screenWidth = NSScreen.main?.visibleFrame.width ?? 1200
         return min(screenWidth * 0.88, 1280)
     }
 
-    static var height: CGFloat {
+    static var maxHeight: CGFloat {
         let screenHeight = NSScreen.main?.visibleFrame.height ?? 900
         return min(screenHeight * 0.72, 760)
     }
 
+    static func height(forWindowCount count: Int) -> CGFloat {
+        let rows = CGFloat(rowCount(forWindowCount: count))
+        let contentHeight = rows * rowHeight + max(0, rows - 1) * gridSpacing + verticalPadding
+        return min(maxHeight, contentHeight)
+    }
+
     static func width(forWindowCount count: Int) -> CGFloat {
-        let availableContentWidth = maxWidth - (sidePadding * 2)
-        let fittedColumns = Int((availableContentWidth + gridSpacing) / (cardWidth + gridSpacing))
-        let columns = CGFloat(max(1, min(count, max(1, fittedColumns))))
+        let columns = CGFloat(columnCount(forWindowCount: count))
         let contentWidth = (columns * cardWidth) + (max(columns - 1, 0) * gridSpacing)
         return min(maxWidth, contentWidth + (sidePadding * 2))
+    }
+
+    private static func columnCount(forWindowCount count: Int) -> Int {
+        let availableContentWidth = maxWidth - (sidePadding * 2)
+        let fittedColumns = Int((availableContentWidth + gridSpacing) / (cardWidth + gridSpacing))
+        return max(1, min(max(1, count), max(1, fittedColumns)))
+    }
+
+    private static func rowCount(forWindowCount count: Int) -> Int {
+        let columns = columnCount(forWindowCount: count)
+        return max(1, Int(ceil(Double(max(1, count)) / Double(columns))))
     }
 }
 

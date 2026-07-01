@@ -162,7 +162,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             width: WindowSwitcherLayout.width(
                 forWindowCount: max(1, WindowSwitcherManager.shared.windows.count)
             ),
-            height: WindowSwitcherLayout.height
+            height: WindowSwitcherLayout.height(
+                forWindowCount: max(1, WindowSwitcherManager.shared.windows.count)
+            )
         )
         let screenFrame = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let x = (screenFrame.width - size.width) / 2

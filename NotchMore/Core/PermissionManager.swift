@@ -19,18 +19,23 @@ enum AppPermission: String, CaseIterable, Identifiable {
         }
     }
 
-    var settingsURL: URL? {
-        let pane: String
+    var settingsURLs: [URL] {
+        let panes: [String]
         switch self {
         case .accessibility:
-            pane = "Privacy_Accessibility"
+            panes = ["Privacy_Accessibility"]
         case .inputMonitoring:
-            pane = "Privacy_InputMonitoring"
+            panes = [
+                "Privacy_ListenEvent",
+                "Privacy_InputMonitoring",
+            ]
         case .screenRecording:
-            pane = "Privacy_ScreenRecording"
+            panes = ["Privacy_ScreenCapture", "Privacy_ScreenRecording"]
         }
 
-        return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")
+        return panes.compactMap {
+            URL(string: "x-apple.systempreferences:com.apple.preference.security?\($0)")
+        }
     }
 }
 
@@ -53,7 +58,11 @@ enum PermissionManager {
             return accessibilityTrusted(prompt: true)
         case .inputMonitoring:
             if #available(macOS 10.15, *) {
-                return IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+                let granted = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent)
+                if !granted {
+                    openSettings(for: permission)
+                }
+                return granted
             }
             openSettings(for: permission)
             return false
@@ -69,8 +78,18 @@ enum PermissionManager {
     }
 
     static func openSettings(for permission: AppPermission) {
-        guard let url = permission.settingsURL else { return }
-        NSWorkspace.shared.open(url)
+        openFirstAvailableSettingsURL(permission.settingsURLs)
+    }
+
+    private static func openFirstAvailableSettingsURL(_ urls: [URL], index: Int = 0) {
+        guard urls.indices.contains(index) else { return }
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        NSWorkspace.shared.open(urls[index], configuration: configuration) { _, error in
+            if error != nil {
+                openFirstAvailableSettingsURL(urls, index: index + 1)
+            }
+        }
     }
 
     private static func accessibilityTrusted(prompt: Bool) -> Bool {

@@ -1,9 +1,15 @@
 <?xml version="1.0" standalone="yes"?>
 <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
-        <title>NotchMore Updates</title>
-        <link>https://github.com/Codseus/NotchMore/releases</link>
-        <description>Automatic updates for NotchMore.</description>
-        <language>en</language>
+        <title>NotchMore</title>
+        <item>
+            <title>1.1.0</title>
+            <pubDate>Wed, 01 Jul 2026 21:35:01 +0300</pubDate>
+            <link>https://github.com/Codseus/NotchMore/releases/tag/1.1.0</link>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.4</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/Codseus/NotchMore/releases/download/1.1.0/NotchMore-1.1.0.zip" length="3608520" type="application/octet-stream" sparkle:edSignature="AgoN6sQu7AleCu4xVslj4CO06kwBI0iP7RANp2NayCyyaO4SmwLur+62+HsNAbC5dFHHgRKlRLuEv8QZtLFTDg=="/>
+        </item>
     </channel>
 </rss>
