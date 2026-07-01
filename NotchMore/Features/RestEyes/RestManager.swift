@@ -1,6 +1,5 @@
 import Foundation
 import Combine
-import SwiftUI
 
 enum RestState {
     case idle
@@ -18,10 +17,9 @@ class RestManager: ObservableObject {
     @Published var state: RestState = .idle
     @Published var timeRemaining: TimeInterval = 0
     
-    // Settings
-    @AppStorage("enableRestEyes") var enableRestEyes: Bool = false
-    @AppStorage("restIntervalMinutes") var restIntervalMinutes: Int = defaultIntervalMinutes
-    @AppStorage("restDurationSeconds") var restDurationSeconds: Int = defaultDurationSeconds
+    private var enableRestEyes: Bool = false
+    private var restIntervalMinutes: Int = defaultIntervalMinutes
+    private var restDurationSeconds: Int = defaultDurationSeconds
     
     private var timer: Timer?
     private var warningDuration: TimeInterval = 10
@@ -29,14 +27,13 @@ class RestManager: ObservableObject {
 
     init() {
         sanitizeStoredSettings()
+        loadStoredSettings()
 
         UserDefaults.standard.publisher(for: \.enableRestEyes)
             .dropFirst()
             .removeDuplicates()
             .sink { [weak self] val in
-                guard self?.enableRestEyes != val else { return }
-                self?.enableRestEyes = val
-                self?.updateState()
+                self?.setEnabled(val)
             }
             .store(in: &observers)
             
@@ -44,14 +41,15 @@ class RestManager: ObservableObject {
             .dropFirst()
             .removeDuplicates()
             .sink { [weak self] val in
-                let interval = max(val, Self.minimumIntervalMinutes)
-                if interval != val {
-                    UserDefaults.standard.set(Self.defaultIntervalMinutes, forKey: "restIntervalMinutes")
-                    return
-                }
-                guard self?.restIntervalMinutes != interval else { return }
-                self?.restIntervalMinutes = interval
-                self?.restartTimer()
+                self?.setIntervalMinutes(val)
+            }
+            .store(in: &observers)
+
+        UserDefaults.standard.publisher(for: \.restDurationSeconds)
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] val in
+                self?.setDurationSeconds(val)
             }
             .store(in: &observers)
             
@@ -62,13 +60,52 @@ class RestManager: ObservableObject {
         if UserDefaults.standard.integer(forKey: "restIntervalMinutes") < Self.minimumIntervalMinutes
         {
             UserDefaults.standard.set(Self.defaultIntervalMinutes, forKey: "restIntervalMinutes")
-            restIntervalMinutes = Self.defaultIntervalMinutes
         }
 
         if UserDefaults.standard.integer(forKey: "restDurationSeconds") < Self.minimumDurationSeconds
         {
             UserDefaults.standard.set(Self.defaultDurationSeconds, forKey: "restDurationSeconds")
-            restDurationSeconds = Self.defaultDurationSeconds
+        }
+    }
+
+    private func loadStoredSettings() {
+        enableRestEyes = UserDefaults.standard.bool(forKey: "enableRestEyes")
+        restIntervalMinutes = max(
+            UserDefaults.standard.integer(forKey: "restIntervalMinutes"),
+            Self.minimumIntervalMinutes
+        )
+        restDurationSeconds = max(
+            UserDefaults.standard.integer(forKey: "restDurationSeconds"),
+            Self.minimumDurationSeconds
+        )
+    }
+
+    private func setEnabled(_ enabled: Bool) {
+        guard enableRestEyes != enabled else { return }
+        enableRestEyes = enabled
+        updateState()
+    }
+
+    private func setIntervalMinutes(_ minutes: Int) {
+        guard minutes >= Self.minimumIntervalMinutes else {
+            UserDefaults.standard.set(Self.defaultIntervalMinutes, forKey: "restIntervalMinutes")
+            return
+        }
+
+        guard restIntervalMinutes != minutes else { return }
+        restIntervalMinutes = minutes
+        restartTimer()
+    }
+
+    private func setDurationSeconds(_ seconds: Int) {
+        guard seconds >= Self.minimumDurationSeconds else {
+            UserDefaults.standard.set(Self.defaultDurationSeconds, forKey: "restDurationSeconds")
+            return
+        }
+
+        restDurationSeconds = seconds
+        if state == .resting {
+            timeRemaining = min(timeRemaining, TimeInterval(seconds))
         }
     }
     
@@ -118,6 +155,8 @@ class RestManager: ObservableObject {
         case .warning:
             if timeRemaining <= 0 {
                 enterRest()
+            } else {
+                showRestWarning()
             }
         case .resting:
             if timeRemaining <= 0 {
@@ -130,7 +169,19 @@ class RestManager: ObservableObject {
     
     private func enterWarning() {
         state = .warning
-        SystemHUDManager.shared.showRestWarning(secondsRemaining: Int(max(timeRemaining, 0)))
+        showRestWarning()
+    }
+
+    private func showRestWarning() {
+        SystemHUDManager.shared.showRestWarning(
+            secondsRemaining: Int(max(timeRemaining, 0)),
+            addTimeAction: { [weak self] in
+                self?.addOneMinute()
+            },
+            skipAction: { [weak self] in
+                self?.skipBreak()
+            }
+        )
     }
     
     private func enterRest() {
@@ -150,7 +201,7 @@ class RestManager: ObservableObject {
         if state == .warning {
             state = .working
             timeRemaining += 60
-            SystemHUDManager.shared.showRestSkipped()
+            SystemHUDManager.shared.showRestTimeAdded()
         } else if state == .working {
             timeRemaining += 60
         }

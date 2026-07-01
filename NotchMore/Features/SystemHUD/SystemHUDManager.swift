@@ -75,6 +75,7 @@ final class SystemHUDManager: ObservableObject {
         let value: Double
         let isMuted: Bool
         let showsLevel: Bool
+        let isInteractive: Bool
     }
 
     private struct PowerState: Equatable {
@@ -96,6 +97,8 @@ final class SystemHUDManager: ObservableObject {
     private var lastPowerState: PowerState?
     private var hasSeededPowerState = false
     private var lastLowBatteryWarningDate: Date?
+    private var restAddTimeAction: (() -> Void)?
+    private var restSkipAction: (() -> Void)?
 
     private let step: Double = 1.0 / 16.0
     private let hideDelay: TimeInterval = 1.05
@@ -163,16 +166,30 @@ final class SystemHUDManager: ObservableObject {
         }
     }
 
-    func showRestWarning(secondsRemaining: Int) {
-        showNotification(
-            kind: .rest,
-            title: "Rest in \(secondsRemaining)s",
-            icon: "eye",
-            value: nil
+    func showRestWarning(
+        secondsRemaining: Int,
+        addTimeAction: @escaping () -> Void,
+        skipAction: @escaping () -> Void
+    ) {
+        restAddTimeAction = addTimeAction
+        restSkipAction = skipAction
+        show(
+            item: Item(
+                kind: .rest,
+                title: "Rest in \(secondsRemaining)s",
+                icon: "eye",
+                value: Double(secondsRemaining),
+                isMuted: false,
+                showsLevel: false,
+                isInteractive: true
+            ),
+            autoHide: false
         )
     }
 
     func showRestStarted(seconds: Int) {
+        restAddTimeAction = nil
+        restSkipAction = nil
         showNotification(
             kind: .rest,
             title: "Rest your eyes",
@@ -182,12 +199,33 @@ final class SystemHUDManager: ObservableObject {
     }
 
     func showRestSkipped() {
+        restAddTimeAction = nil
+        restSkipAction = nil
         showNotification(
             kind: .rest,
             title: "Break skipped",
             icon: "forward.fill",
             value: nil
         )
+    }
+
+    func showRestTimeAdded() {
+        restAddTimeAction = nil
+        restSkipAction = nil
+        showNotification(
+            kind: .rest,
+            title: "Added 1 minute",
+            icon: "plus.circle.fill",
+            value: nil
+        )
+    }
+
+    func addRestTime() {
+        restAddTimeAction?()
+    }
+
+    func skipRestBreak() {
+        restSkipAction?()
     }
 
     fileprivate func handleSystemDefinedEvent(_ event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -504,7 +542,8 @@ final class SystemHUDManager: ObservableObject {
                 icon: nil,
                 value: value,
                 isMuted: isMuted,
-                showsLevel: true
+                showsLevel: true,
+                isInteractive: false
             ))
     }
 
@@ -516,11 +555,12 @@ final class SystemHUDManager: ObservableObject {
                 icon: icon,
                 value: value ?? 0,
                 isMuted: false,
-                showsLevel: value != nil
+                showsLevel: value != nil,
+                isInteractive: false
             ))
     }
 
-    private func show(item newItem: Item) {
+    private func show(item newItem: Item, autoHide: Bool = true) {
         Task { @MainActor in
             self.setupNotchHUDIfNeeded()
             self.item = newItem
@@ -537,6 +577,11 @@ final class SystemHUDManager: ObservableObject {
             }
 
             self.hideWorkItem?.cancel()
+            guard autoHide else {
+                self.hideWorkItem = nil
+                return
+            }
+
             let workItem = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 self.visibilityTask?.cancel()
@@ -569,7 +614,7 @@ final class SystemHUDManager: ObservableObject {
     private func configureHUDWindow() {
         guard let window = notchHUD?.windowController?.window else { return }
         window.level = .screenSaver
-        window.ignoresMouseEvents = true
+        window.ignoresMouseEvents = !(item?.isInteractive ?? false)
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     }
 
@@ -592,37 +637,91 @@ private struct SystemHUDContentView: View {
     var body: some View {
         Group {
             if let item = manager.item {
-                VStack(spacing: 10) {
-                    HStack(spacing: 10) {
-                        Image(systemName: icon(for: item))
-                            .font(.system(size: 20, weight: .semibold))
-                            .frame(width: 26)
-
-                        Text(title(for: item))
-                            .font(.system(size: 13, weight: .semibold))
-                            .lineLimit(1)
-
-                        Spacer(minLength: 8)
-
-                        if item.showsLevel {
-                            Text("\(Int(round((item.isMuted ? 0 : item.value) * 100)))")
-                                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                                .monospacedDigit()
-                                .frame(width: 34, alignment: .trailing)
-                        }
-                    }
-
-                    if item.showsLevel {
-                        segmentedLevel(value: item.isMuted ? 0 : item.value)
-                    }
+                if item.isInteractive && item.kind == .rest {
+                    restWarning(item)
+                } else {
+                    compactHUD(item)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 10)
-                .padding(.bottom, item.showsLevel ? 16 : 14)
-                .frame(width: 310, height: item.showsLevel ? 86 : 62)
-                .foregroundStyle(.primary)
             }
         }
+    }
+
+    private func compactHUD(_ item: SystemHUDManager.Item) -> some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Image(systemName: icon(for: item))
+                    .font(.system(size: 20, weight: .semibold))
+                    .frame(width: 26)
+
+                Text(title(for: item))
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                if item.showsLevel {
+                    Text("\(Int(round((item.isMuted ? 0 : item.value) * 100)))")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .frame(width: 34, alignment: .trailing)
+                }
+            }
+
+            if item.showsLevel {
+                segmentedLevel(value: item.isMuted ? 0 : item.value)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 10)
+        .padding(.bottom, item.showsLevel ? 16 : 14)
+        .frame(width: 310, height: item.showsLevel ? 86 : 62)
+        .foregroundStyle(.primary)
+    }
+
+    private func restWarning(_ item: SystemHUDManager.Item) -> some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: icon(for: item))
+                    .font(.system(size: 20, weight: .semibold))
+                    .frame(width: 26)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Rest Eyes")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("\(Int(item.value)) seconds until break")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer(minLength: 8)
+            }
+
+            HStack(spacing: 10) {
+                Button(action: { manager.addRestTime() }) {
+                    Text("+1 min")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 86, height: 28)
+                        .background(Color.primary.opacity(0.12))
+                        .clipShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: { manager.skipRestBreak() }) {
+                    Text("Skip")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 86, height: 28)
+                        .background(Color.primary.opacity(0.08))
+                        .clipShape(Capsule(style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 12)
+        .padding(.bottom, 16)
+        .frame(width: 330, height: 112)
+        .foregroundStyle(.primary)
     }
 
     private func segmentedLevel(value: Double) -> some View {

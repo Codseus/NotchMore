@@ -268,25 +268,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Rest Windows Setup
 
     func setupRestWindows() {
-        let warningView = RestWarningView(restManager: restManager)
-        let warningHostingView = NSHostingView(rootView: warningView)
-        warningHostingView.wantsLayer = true
-        warningHostingView.layer?.cornerRadius = 16
-
-        let warningWindow = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 340, height: 70),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        warningWindow.isOpaque = false
-        warningWindow.backgroundColor = .clear
-        warningWindow.level = .floating
-        warningWindow.contentView = warningHostingView
-        warningWindow.hasShadow = true
-        warningWindow.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        self.restWarningWindow = warningWindow
-
         guard let screen = NSScreen.main else { return }
 
         let blockingView = RestBlockingView(restManager: restManager)
@@ -315,12 +296,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         case .warning:
             restBlockingWindow?.orderOut(nil)
-            if let screen = NSScreen.main, let w = restWarningWindow {
-                let x = screen.visibleFrame.maxX - w.frame.width - 20
-                let y = screen.visibleFrame.maxY - w.frame.height - 20
-                w.setFrameOrigin(NSPoint(x: x, y: y))
-                w.orderFront(nil)
-            }
 
         case .resting:
             restWarningWindow?.orderOut(nil)
@@ -696,6 +671,9 @@ extension UserDefaults {
     }
     @objc dynamic var restIntervalMinutes: Int {
         return integer(forKey: "restIntervalMinutes")
+    }
+    @objc dynamic var restDurationSeconds: Int {
+        return integer(forKey: "restDurationSeconds")
     }
 
     @objc dynamic var enableCtrlXCutPaste: Bool {
