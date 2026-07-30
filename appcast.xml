@@ -3,13 +3,13 @@
     <channel>
         <title>NotchMore</title>
         <item>
-            <title>1.1.1</title>
-            <pubDate>Wed, 01 Jul 2026 23:24:26 +0300</pubDate>
-            <link>https://github.com/Codseus/NotchMore/releases/tag/1.1.1</link>
-            <sparkle:version>3</sparkle:version>
-            <sparkle:shortVersionString>1.1.1</sparkle:shortVersionString>
+            <title>1.2.0</title>
+            <pubDate>Thu, 30 Jul 2026 04:56:00 +0300</pubDate>
+            <link>https://github.com/Codseus/NotchMore/releases/tag/1.2.0</link>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.4</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/Codseus/NotchMore/releases/download/1.1.1/NotchMore-1.1.1.zip" length="3626261" type="application/octet-stream" sparkle:edSignature="zk260IdDE5Qrd7HLyvh/Y3IcUHD7zwTgkVV24VJ/m+ecsqSXpiwQYFq3GgzQGR+dhyGUQ9guisC0U5OE7O1hCQ=="/>
+            <enclosure url="https://github.com/Codseus/NotchMore/releases/download/1.2.0/NotchMore-1.2.0.zip" length="3936985" type="application/octet-stream" sparkle:edSignature="FidGGeXmVrFwtNd0St7/h0IwHSaLbqESvQmnUuKL/KA8YRpsNwap2luWeNG+mIdVPko2GVVJOxWxkMQA7Dh5Ag=="/>
         </item>
     </channel>
 </rss>
