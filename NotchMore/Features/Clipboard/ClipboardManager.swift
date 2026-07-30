@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Vision
 
 enum ClipboardItemType: Codable {
     case text(String)
@@ -113,10 +114,20 @@ class ClipboardManager: ObservableObject {
     private var timer: Timer?
     private var lastChangeCount: Int = 0
     private var isMonitoringEnabled = false
+    private var screenshotFolderSource: DispatchSourceFileSystemObject?
+    private var screenshotFolderDescriptor: CInt = -1
+    private var screenshotFolderURL: URL?
+    private var recentlyHandledScreenshotPaths = Set<String>()
+    private let screenshotQueue = DispatchQueue(label: "codseus.NotchMore.screenshotMonitor")
+    private var pendingScreenshotScanWorkItem: DispatchWorkItem?
 
     private static let storageKey = "clipboardHistory"
     private static let historyLimitKey = "clipboardHistoryLimit"
     private static let defaultHistoryLimit = 10
+    private static let screenshotImageExtensions = [
+        "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "heic", "webp"
+    ]
+    private static let storedImageMaxSize: CGFloat = 1400
 
     init() {
         lastChangeCount = pasteboard.changeCount
@@ -141,6 +152,12 @@ class ClipboardManager: ObservableObject {
         timer = nil
     }
 
+    func updateScreenshotMonitoring(isEnabled: Bool) {
+        stopScreenshotMonitoring()
+        guard isEnabled else { return }
+        startScreenshotMonitoring()
+    }
+
     private func checkClipboard() {
         guard isMonitoringEnabled else { return }
         guard pasteboard.changeCount != lastChangeCount else { return }
@@ -149,11 +166,11 @@ class ClipboardManager: ObservableObject {
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], !urls.isEmpty {
             let url = urls[0]
             
-            let imageExtensions = ["jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "heic", "webp", "svg"]
             let fileExtension = url.pathExtension.lowercased()
             
-            if imageExtensions.contains(fileExtension), let image = NSImage(contentsOf: url) {
-                let imageData = thumbnailData(from: image)
+            if Self.screenshotImageExtensions.contains(fileExtension) || fileExtension == "svg",
+               let image = NSImage(contentsOf: url) {
+                let imageData = storedImageData(from: image)
                 let newItem = ClipboardItem(type: .image(imageData, name: url.lastPathComponent))
                 addItem(newItem)
                 return
@@ -173,7 +190,7 @@ class ClipboardManager: ObservableObject {
         }
         
         if let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage {
-            let imageData = thumbnailData(from: image)
+            let imageData = storedImageData(from: image)
             let newItem = ClipboardItem(type: .image(imageData, name: nil))
             addItem(newItem)
             return
@@ -193,10 +210,12 @@ class ClipboardManager: ObservableObject {
         }
     }
 
-    private func thumbnailData(from image: NSImage) -> Data {
-        image.thumbnail(maxSize: NotchConstants.clipboardThumbnailSize)?.tiffRepresentation
-            ?? image.tiffRepresentation
-            ?? Data()
+    private func storedImageData(from image: NSImage) -> Data {
+        let image = image.thumbnail(maxSize: Self.storedImageMaxSize) ?? image
+        return image.normalizedCGImage.flatMap { cgImage in
+            let bitmap = NSBitmapImageRep(cgImage: cgImage)
+            return bitmap.representation(using: .png, properties: [:])
+        } ?? image.tiffRepresentation ?? Data()
     }
     
     private func addItem(_ item: ClipboardItem) {
@@ -258,9 +277,35 @@ class ClipboardManager: ObservableObject {
         lastChangeCount = pasteboard.changeCount
     }
 
+    func copyOCRText(from item: ClipboardItem) {
+        guard case .image(let data, _) = item.type, let image = NSImage(data: data) else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let text = Self.recognizedText(from: image), !text.isEmpty else { return }
+
+            DispatchQueue.main.async {
+                self?.copyTextToClipboardAndHistory(text)
+            }
+        }
+    }
+
+    private func copyTextToClipboardAndHistory(_ text: String) {
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
+        lastChangeCount = pasteboard.changeCount
+        insertItem(ClipboardItem(type: .text(text)))
+    }
+
     func deleteItem(item: ClipboardItem) {
         DispatchQueue.main.async {
             self.history.removeAll(where: { $0.id == item.id })
+            self.saveHistory()
+        }
+    }
+
+    func deleteAllItems() {
+        DispatchQueue.main.async {
+            self.history.removeAll(where: { !$0.isPinned })
             self.saveHistory()
         }
     }
@@ -291,7 +336,143 @@ class ClipboardManager: ObservableObject {
         }
     }
 
+    private func startScreenshotMonitoring() {
+        guard screenshotFolderSource == nil else { return }
+        let folderURL = Self.currentScreenshotFolderURL()
+        screenshotFolderURL = folderURL
+
+        let descriptor = open(folderURL.path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+
+        screenshotFolderDescriptor = descriptor
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor,
+            eventMask: [.write, .rename],
+            queue: screenshotQueue
+        )
+        source.setEventHandler { [weak self] in
+            self?.handleScreenshotFolderChanged()
+        }
+        source.setCancelHandler { [weak self] in
+            close(descriptor)
+            DispatchQueue.main.async {
+                guard self?.screenshotFolderDescriptor == descriptor else { return }
+                self?.screenshotFolderDescriptor = -1
+            }
+        }
+        screenshotFolderSource = source
+        source.resume()
+    }
+
+    private func stopScreenshotMonitoring() {
+        pendingScreenshotScanWorkItem?.cancel()
+        pendingScreenshotScanWorkItem = nil
+        screenshotFolderSource?.cancel()
+        screenshotFolderSource = nil
+        screenshotFolderURL = nil
+        screenshotQueue.async { [weak self] in
+            self?.recentlyHandledScreenshotPaths.removeAll()
+        }
+    }
+
+    private func handleScreenshotFolderChanged() {
+        guard let folderURL = screenshotFolderURL else { return }
+
+        pendingScreenshotScanWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.copyRecentScreenshotIfNeeded(in: folderURL)
+        }
+        pendingScreenshotScanWorkItem = workItem
+        screenshotQueue.asyncAfter(deadline: .now() + 0.35, execute: workItem)
+    }
+
+    private func copyRecentScreenshotIfNeeded(in folderURL: URL) {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey]
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        let now = Date()
+        let candidates = files.compactMap { url -> (url: URL, date: Date)? in
+            guard Self.screenshotImageExtensions.contains(url.pathExtension.lowercased()) else {
+                return nil
+            }
+            guard Self.looksLikeScreenshotFile(url) else { return nil }
+            guard !recentlyHandledScreenshotPaths.contains(url.path) else { return nil }
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true, let date = values?.contentModificationDate else {
+                return nil
+            }
+            guard now.timeIntervalSince(date) <= 8 else { return nil }
+            return (url, date)
+        }
+
+        guard let newest = candidates.max(by: { $0.date < $1.date })?.url else { return }
+        recentlyHandledScreenshotPaths.insert(newest.path)
+        if recentlyHandledScreenshotPaths.count > 40 {
+            recentlyHandledScreenshotPaths.removeAll(keepingCapacity: true)
+            recentlyHandledScreenshotPaths.insert(newest.path)
+        }
+
+        guard let image = NSImage(contentsOf: newest) else { return }
+        let data = storedImageData(from: image)
+        guard !data.isEmpty else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.pasteboard.clearContents()
+            if let copiedImage = NSImage(data: data) {
+                self.pasteboard.writeObjects([copiedImage])
+            }
+            self.lastChangeCount = self.pasteboard.changeCount
+            self.insertItem(ClipboardItem(type: .image(data, name: newest.lastPathComponent)))
+        }
+    }
+
+    private static func currentScreenshotFolderURL() -> URL {
+        if let location = CFPreferencesCopyAppValue(
+            "location" as CFString,
+            "com.apple.screencapture" as CFString
+        ) as? String,
+           !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: NSString(string: location).expandingTildeInPath)
+        }
+
+        return FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop")
+    }
+
+    private static func looksLikeScreenshotFile(_ url: URL) -> Bool {
+        let name = url.deletingPathExtension().lastPathComponent.lowercased()
+        return name.hasPrefix("screenshot")
+            || name.hasPrefix("screen shot")
+            || name.hasPrefix("ekran resmi")
+    }
+
+    private static func recognizedText(from image: NSImage) -> String? {
+        guard let cgImage = image.normalizedCGImage else { return nil }
+
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        do {
+            try handler.perform([request])
+            let lines = request.results?.compactMap { observation in
+                observation.topCandidates(1).first?.string
+            } ?? []
+            return lines.joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            return nil
+        }
+    }
+
     deinit {
         stopMonitoring()
+        stopScreenshotMonitoring()
     }
 }

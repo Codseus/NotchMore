@@ -24,6 +24,10 @@
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>NotchMore uses the camera only when you open Mirror from the notch panel.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>NotchMore uses the local network to find LocalSend devices and send files you drop on the notch.</string>
     <key>SUFeedURL</key>
     <string>https://raw.githubusercontent.com/Codseus/NotchMore/main/appcast.xml</string>
     <key>SUPublicEDKey</key>

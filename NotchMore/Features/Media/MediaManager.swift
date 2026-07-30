@@ -121,7 +121,9 @@ class MediaManager: ObservableObject {
             thumbnail = nil
             lastArtworkKey = nil
         } else if let originalArtwork = artworkImage(from: trackInfo) {
-            thumbnail = originalArtwork.thumbnail(maxSize: NotchConstants.artworkThumbnailSize)
+            thumbnail =
+                originalArtwork.thumbnail(maxSize: NotchConstants.artworkThumbnailSize)
+                ?? originalArtwork
             if let thumbnail {
                 cacheArtwork(thumbnail, for: trackIdentity)
                 cacheArtwork(thumbnail, for: fallbackTrackIdentity)
@@ -159,15 +161,14 @@ class MediaManager: ObservableObject {
 
     private func artworkImage(from trackInfo: TrackInfo) -> NSImage? {
         if let artwork = trackInfo.payload.artwork {
-            return artwork.hasRenderableImage ? artwork : nil
+            return artwork
         }
 
         guard let base64 = trackInfo.payload.artworkDataBase64,
             let data = Data(base64Encoded: base64)
         else { return nil }
 
-        guard let image = NSImage(data: data), image.hasRenderableImage else { return nil }
-        return image
+        return NSImage(data: data)
     }
 
     private func appIcon(for bundleIdentifier: String?) -> NSImage? {

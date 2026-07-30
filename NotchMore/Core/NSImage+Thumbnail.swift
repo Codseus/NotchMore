@@ -42,13 +42,21 @@ extension NSImage {
         normalizedCGImage != nil
     }
 
-    private var normalizedCGImage: CGImage? {
+    var normalizedCGImage: CGImage? {
         var proposedRect = CGRect(origin: .zero, size: size)
-        return cgImage(forProposedRect: &proposedRect, context: nil, hints: nil)
-            ?? bestRepresentation(
-                for: proposedRect,
-                context: nil,
-                hints: nil
-            )?.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil)
+        if let image = cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+            return image
+        }
+
+        if let representation = bestRepresentation(for: proposedRect, context: nil, hints: nil),
+           let image = representation.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) {
+            return image
+        }
+
+        guard let tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffRepresentation)
+        else { return nil }
+
+        return bitmap.cgImage
     }
 }

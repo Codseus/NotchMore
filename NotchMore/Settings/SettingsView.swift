@@ -104,6 +104,8 @@ struct GeneralSettingsView: View {
         PermissionManager.isGranted(.inputMonitoring)
     @State private var screenRecordingGranted: Bool =
         PermissionManager.isGranted(.screenRecording)
+    @State private var cameraGranted: Bool =
+        PermissionManager.isGranted(.camera)
 
     var body: some View {
         ScrollView {
@@ -217,6 +219,32 @@ struct GeneralSettingsView: View {
                         }
 
                         HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text("Camera")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Spacer()
+                                    Text(cameraGranted ? "Granted" : "Not Granted")
+                                        .font(.caption)
+                                        .foregroundColor(cameraGranted ? .green : .secondary)
+                                }
+                                Text("Required for the notch Mirror camera preview.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Button(cameraGranted ? "Open Settings" : "Request") {
+                                if cameraGranted {
+                                    PermissionManager.openSettings(for: .camera)
+                                } else {
+                                    _ = PermissionManager.request(.camera)
+                                    refreshPermissionsSoon()
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        HStack {
                             Button("Refresh") {
                                 refreshPermissions()
                             }
@@ -249,12 +277,15 @@ struct GeneralSettingsView: View {
         accessibilityGranted = PermissionManager.isGranted(.accessibility)
         inputMonitoringGranted = PermissionManager.isGranted(.inputMonitoring)
         screenRecordingGranted = PermissionManager.isGranted(.screenRecording)
+        cameraGranted = PermissionManager.isGranted(.camera)
     }
 }
 
 struct FunctionsSettingsView: View {
     @AppStorage("enableCtrlXCutPaste") private var enableCtrlXCutPaste = false
     @AppStorage("enableClipboardHistory") private var enableClipboardHistory = false
+    @AppStorage("autoCopyScreenshotsToClipboard") private var autoCopyScreenshotsToClipboard =
+        false
     @AppStorage("clipboardHistoryLimit") private var clipboardHistoryLimit = 10
     @AppStorage("enablePasteWithoutFormatting") private var enablePasteWithoutFormatting = false
     @AppStorage("enableThreeFingerMiddleClick") private var enableThreeFingerMiddleClick = false
@@ -263,6 +294,8 @@ struct FunctionsSettingsView: View {
     @AppStorage("enableWindowSwitcher") private var enableWindowSwitcher = false
     @AppStorage("enableDockPreviews") private var enableDockPreviews = false
     @AppStorage("enableFileShelf") private var enableFileShelf = false
+    @AppStorage("enableAirDropSupport") private var enableAirDropSupport = false
+    @AppStorage("enableLocalSendSupport") private var enableLocalSendSupport = false
     @AppStorage("enableCapsLockNoDelay") private var enableCapsLockNoDelay = false
     @AppStorage("windowSwitcherUseCommandTab") private var useCommandTab = false
     @AppStorage("enableRestEyes") private var enableRestEyes = false
@@ -294,6 +327,12 @@ struct FunctionsSettingsView: View {
                         )
                         .font(.caption)
                         .foregroundColor(.secondary)
+
+                        SettingsToggleRow(
+                            title: "Auto-copy Screenshots",
+                            subtitle: "Copy newly saved macOS screenshots to the clipboard and image history.",
+                            isOn: $autoCopyScreenshotsToClipboard
+                        )
                     }
                     Divider()
                         .padding(.vertical, 8)
@@ -301,6 +340,18 @@ struct FunctionsSettingsView: View {
                         title: "File Shelf",
                         subtitle: "Quick access shelf for files dropped on the notch.",
                         isOn: $enableFileShelf
+                    )
+
+                    SettingsToggleRow(
+                        title: "AirDrop Drop Zone",
+                        subtitle: "Split notch file drops between File Shelf and native AirDrop.",
+                        isOn: $enableAirDropSupport
+                    )
+
+                    SettingsToggleRow(
+                        title: "LocalSend Drop Zone",
+                        subtitle: "Send dropped files to Android and other devices through LocalSend.",
+                        isOn: $enableLocalSendSupport
                     )
                 }
                 SettingsCard(title: "3-Finger Click as Middle Click") {

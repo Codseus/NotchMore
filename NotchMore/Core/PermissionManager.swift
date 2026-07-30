@@ -1,5 +1,6 @@
 import ApplicationServices
 import AppKit
+import AVFoundation
 import CoreGraphics
 import Foundation
 import IOKit.hid
@@ -8,6 +9,7 @@ enum AppPermission: String, CaseIterable, Identifiable {
     case accessibility
     case inputMonitoring
     case screenRecording
+    case camera
 
     var id: String { rawValue }
 
@@ -16,6 +18,7 @@ enum AppPermission: String, CaseIterable, Identifiable {
         case .accessibility: return "Accessibility"
         case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
+        case .camera: return "Camera"
         }
     }
 
@@ -31,6 +34,8 @@ enum AppPermission: String, CaseIterable, Identifiable {
             ]
         case .screenRecording:
             panes = ["Privacy_ScreenCapture", "Privacy_ScreenRecording"]
+        case .camera:
+            panes = ["Privacy_Camera"]
         }
 
         return panes.compactMap {
@@ -48,6 +53,8 @@ enum PermissionManager {
             return canCreateKeyboardEventTap()
         case .screenRecording:
             return CGPreflightScreenCaptureAccess()
+        case .camera:
+            return AVCaptureDevice.authorizationStatus(for: .video) == .authorized
         }
     }
 
@@ -68,6 +75,9 @@ enum PermissionManager {
             return false
         case .screenRecording:
             return CGRequestScreenCaptureAccess()
+        case .camera:
+            requestCameraAccess { _ in }
+            return isGranted(.camera)
         }
     }
 
@@ -79,6 +89,27 @@ enum PermissionManager {
 
     static func openSettings(for permission: AppPermission) {
         openFirstAvailableSettingsURL(permission.settingsURLs)
+    }
+
+    static func requestCameraAccess(completion: @escaping (Bool) -> Void) {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            completion(true)
+        case .notDetermined:
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    completion(granted)
+                }
+            }
+        case .denied, .restricted:
+            openSettings(for: .camera)
+            completion(false)
+        @unknown default:
+            completion(false)
+        }
     }
 
     private static func openFirstAvailableSettingsURL(_ urls: [URL], index: Int = 0) {

@@ -23,14 +23,17 @@ final class NotchPanelController {
     private var isHoveringPanel = false
     private var pendingHideWorkItem: DispatchWorkItem?
     private var pendingDragEndWorkItem: DispatchWorkItem?
+    private var pendingDragWatchdogWorkItem: DispatchWorkItem?
     private var pendingShowWorkItem: DispatchWorkItem?
     private var hoverValidationTimer: Timer?
     private var visibilityTask: Task<Void, Never>?
     private var wantsNotchVisible = false
     private var keepVisibleUntil: Date?
+    private var isMirrorActive = false
 
     private let hideGracePeriod: TimeInterval = 0.3
     private let dragSessionGracePeriod: TimeInterval = 0.8
+    private let dragWatchdogInterval: TimeInterval = 0.65
     private let hoverValidationInterval: TimeInterval = 0.12
     private let visiblePanelHitTestPadding: CGFloat = 8
     private let externalInteractionHoldDuration: TimeInterval = 10
@@ -96,7 +99,7 @@ final class NotchPanelController {
 
     private var shouldKeepNotchVisible: Bool {
         isHoveringTrigger || isHoveringPanel || isDraggingOverTrigger || isDraggingOverPanel
-            || isDragSessionActive || isExternalInteractionActive
+            || isDragSessionActive || isExternalInteractionActive || isMirrorActive
     }
 
     private var isExternalInteractionActive: Bool {
@@ -109,6 +112,17 @@ final class NotchPanelController {
         pendingHideWorkItem?.cancel()
         pendingHideWorkItem = nil
         showNotch()
+    }
+
+    private func mirrorActiveChanged(_ active: Bool) {
+        isMirrorActive = active
+        if active {
+            pendingHideWorkItem?.cancel()
+            pendingHideWorkItem = nil
+            showNotch()
+        } else {
+            evaluateHoverState()
+        }
     }
 
     private func evaluateHoverState() {
@@ -155,6 +169,7 @@ final class NotchPanelController {
         isDraggingOverTrigger = isDragging
         if isDragging {
             beginDragSession()
+            scheduleDragWatchdog()
             isHoveringTrigger = false
         } else {
             scheduleDragSessionEnd()
@@ -195,6 +210,7 @@ final class NotchPanelController {
         isDraggingOverPanel = isDragging
         if isDragging {
             beginDragSession()
+            scheduleDragWatchdog()
         } else {
             scheduleDragSessionEnd()
         }
@@ -271,6 +287,28 @@ final class NotchPanelController {
         isDragSessionActive = true
     }
 
+    private func scheduleDragWatchdog() {
+        pendingDragWatchdogWorkItem?.cancel()
+
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                self.refreshPointerHoverState()
+                if !self.isPointerOverTrigger(), !self.isPointerOverPanel() {
+                    self.isDraggingOverTrigger = false
+                    self.isDraggingOverPanel = false
+                    self.endDragSession()
+                    self.configureNotchWindowLevel()
+                    self.evaluateHoverState()
+                } else if self.isDraggingOverTrigger || self.isDraggingOverPanel || self.isDragSessionActive {
+                    self.scheduleDragWatchdog()
+                }
+            }
+        }
+        pendingDragWatchdogWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + dragWatchdogInterval, execute: workItem)
+    }
+
     private func scheduleDragSessionEnd() {
         pendingDragEndWorkItem?.cancel()
 
@@ -293,6 +331,8 @@ final class NotchPanelController {
     private func endDragSession() {
         pendingDragEndWorkItem?.cancel()
         pendingDragEndWorkItem = nil
+        pendingDragWatchdogWorkItem?.cancel()
+        pendingDragWatchdogWorkItem = nil
         isDragSessionActive = false
         dynamicNotch?.windowController?.window?.ignoresMouseEvents = false
     }
@@ -302,6 +342,15 @@ final class NotchPanelController {
         return triggerWindows.contains { window in
             window.isVisible && window.frame.contains(mouseLocation)
         }
+    }
+
+    private func isPointerOverPanel() -> Bool {
+        guard let panelWindow = dynamicNotch?.windowController?.window,
+              panelWindow.isVisible,
+              let screen = panelWindow.screen
+        else { return false }
+
+        return visiblePanelInteractionFrame(on: screen).contains(NSEvent.mouseLocation)
     }
 
     private func startHoverValidationTimer() {
@@ -346,8 +395,8 @@ final class NotchPanelController {
 
     private func visiblePanelInteractionFrame(on screen: NSScreen) -> NSRect {
         let sectionCount = NotchLayout.panelSectionCount(
-            enableFileShelf: isFileShelfEnabled(),
-            showClipboard: isClipboardEnabled()
+            enableFileShelf: isMirrorActive ? false : isFileShelfEnabled(),
+            showClipboard: isMirrorActive ? false : isClipboardEnabled()
         )
         let metrics = NotchLayout.scaledMetrics(
             panelWidth: NotchConstants.basePanelWidth,
@@ -416,6 +465,9 @@ final class NotchPanelController {
             fileShelfManager: fileShelfManager,
             onOpenSettings: { [weak self] in
                 self?.onOpenSettings()
+            },
+            onMirrorActiveChange: { [weak self] active in
+                self?.mirrorActiveChanged(active)
             },
             onHover: { [weak self] isHovering in
                 self?.panelHoverChanged(isHovering)

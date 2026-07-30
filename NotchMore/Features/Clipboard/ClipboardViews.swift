@@ -25,13 +25,17 @@ struct ClipboardHistoryView: View {
         return items
     }
 
+    private var hasUnpinnedHistoryItems: Bool {
+        clipboardManager.history.contains { !$0.isPinned }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
                 .padding(.horizontal, 14)
                 .padding(.top, 14)
 
-            searchField
+            searchToolbar
                 .padding(.horizontal, 14)
 
             ScrollView {
@@ -47,6 +51,7 @@ struct ClipboardHistoryView: View {
                                 item: item,
                                 isHovered: hoveredItemId == item.id,
                                 onCopy: { clipboardManager.copyToClipboard(item: item) },
+                                onOCR: { clipboardManager.copyOCRText(from: item) },
                                 onDelete: { clipboardManager.deleteItem(item: item) },
                                 onPin: { clipboardManager.togglePin(item: item) }
                             )
@@ -65,6 +70,7 @@ struct ClipboardHistoryView: View {
         .frame(width: panelWidth, height: panelHeight)
         .animation(.easeInOut(duration: 0.2), value: panelWidth)
         .animation(.easeInOut(duration: 0.2), value: panelHeight)
+        .resetArrowCursorOnHover()
     }
 
     private var header: some View {
@@ -97,6 +103,32 @@ struct ClipboardHistoryView: View {
         }
     }
 
+    private var searchToolbar: some View {
+        HStack(spacing: 8) {
+            searchField
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    clipboardManager.deleteAllItems()
+                    hoveredItemId = nil
+                }
+            } label: {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(
+                NotchIconButtonStyle(
+                    size: 24,
+                    cornerRadius: 6,
+                    tint: .secondary
+                )
+            )
+            .disabled(!hasUnpinnedHistoryItems)
+            .opacity(hasUnpinnedHistoryItems ? 1 : 0.42)
+            .help("Delete Unpinned Clipboard History")
+        }
+    }
+
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -112,9 +144,8 @@ struct ClipboardHistoryView: View {
                 Button(action: { searchQuery = "" }) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NotchIconButtonStyle(size: 18, cornerRadius: 9, tint: .secondary))
             }
         }
         .padding(.horizontal, 10)
@@ -127,6 +158,12 @@ struct ClipboardHistoryView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .stroke(Color.white.opacity(0.18), lineWidth: 0.7)
         )
+        .frame(maxWidth: .infinity)
+        .onHover { hovering in
+            if !hovering {
+                NSCursor.arrow.set()
+            }
+        }
     }
 
     private func countForCategory(_ category: ClipboardCategory) -> Int {
@@ -152,25 +189,10 @@ struct ClipboardCategoryChip: View {
                 if count > 0 {
                     Text("\(count)")
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(isSelected ? .primary : .secondary)
                 }
             }
-            .foregroundStyle(isSelected ? .primary : .secondary)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 5)
-            .contentShape(Capsule())
-            .background(
-                Capsule(style: .continuous)
-                    .fill(isSelected ? AnyShapeStyle(.thinMaterial) : AnyShapeStyle(Color.clear))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(
-                        isSelected ? Color.white.opacity(0.24) : Color.white.opacity(0.10),
-                        lineWidth: 0.7)
-            )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NotchPillButtonStyle(height: 24, tint: .primary, isActive: isSelected))
     }
 }
 
@@ -205,6 +227,7 @@ struct ClipboardItemRow: View {
     let item: ClipboardItem
     let isHovered: Bool
     let onCopy: () -> Void
+    let onOCR: () -> Void
     let onDelete: () -> Void
     let onPin: () -> Void
 
@@ -233,12 +256,27 @@ struct ClipboardItemRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if isHovered {
-                HStack(spacing: 4) {
-                    ClipboardActionButton(
-                        systemName: item.isPinned ? "pin.slash" : "pin", tint: .yellow,
-                        action: onPin)
-                    ClipboardActionButton(systemName: "doc.on.doc", tint: .primary, action: onCopy)
-                    ClipboardActionButton(systemName: "trash", tint: .red, action: onDelete)
+                VStack(alignment: .trailing, spacing: 4) {
+                    HStack(spacing: 4) {
+                        ClipboardActionButton(
+                            systemName: item.isPinned ? "pin.slash" : "pin", tint: .yellow,
+                            action: onPin)
+                        ClipboardActionButton(
+                            systemName: "doc.on.doc", tint: .primary, action: onCopy)
+                        ClipboardActionButton(systemName: "trash", tint: .red, action: onDelete)
+                    }
+
+                    if item.category == .image {
+                        Button(action: onOCR) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "text.viewfinder")
+                                    .font(.system(size: 9, weight: .semibold))
+                                Text("OCR")
+                                    .font(.system(size: 9, weight: .semibold))
+                            }
+                        }
+                        .buttonStyle(NotchPillButtonStyle(width: 74, height: 20))
+                    }
                 }
             }
         }
@@ -315,13 +353,14 @@ struct ClipboardActionButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(tint)
-                .frame(width: 22, height: 22)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(
+            NotchIconButtonStyle(
+                size: 22,
+                cornerRadius: 6,
+                tint: tint,
+                isDestructive: tint == .red
+            )
+        )
     }
 }

@@ -7,7 +7,6 @@ struct FileShelfView: View {
     let panelHeight: CGFloat
     var onExternalInteraction: (() -> Void)?
     @State private var hoveredFileId: UUID?
-    @State private var isDropTargetActive = false
     @State private var searchQuery: String = ""
     @State private var selectedFileIds: Set<UUID> = []
 
@@ -95,22 +94,13 @@ struct FileShelfView: View {
                 }
                 .padding(.vertical, 8)
             }
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        isDropTargetActive
-                            ? AnyShapeStyle(Color.accentColor.opacity(0.16))
-                            : AnyShapeStyle(Color.clear))
-            )
             .padding(.horizontal, 8)
             .padding(.bottom, 8)
-            .onDrop(of: [.fileURL], isTargeted: $isDropTargetActive) { providers in
-                handleDrop(providers: providers)
-            }
         }
         .frame(width: panelWidth, height: panelHeight, alignment: .top)
         .animation(.easeInOut(duration: 0.2), value: panelWidth)
         .animation(.easeInOut(duration: 0.2), value: panelHeight)
+        .resetArrowCursorOnHover()
         .onChange(of: fileShelfManager.shelfFiles.map(\.id)) { _, ids in
             selectedFileIds.formIntersection(Set(ids))
         }
@@ -118,75 +108,59 @@ struct FileShelfView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Label("Quick Access", systemImage: "folder.badge.plus")
-                .font(.system(size: 11, weight: .semibold))
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.primary)
-
-            Spacer(minLength: 0)
+                .frame(width: 18)
 
             searchField
+                .frame(maxWidth: .infinity)
 
-            if !fileShelfManager.shelfFiles.isEmpty {
-                Button(action: { fileShelfManager.clearAll() }) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24, height: 24)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(.ultraThinMaterial)
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Clear all")
+            Button(action: { fileShelfManager.clearAll() }) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11, weight: .medium))
             }
+            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 6, tint: .secondary))
+            .disabled(fileShelfManager.shelfFiles.isEmpty)
+            .opacity(fileShelfManager.shelfFiles.isEmpty ? 0.42 : 1)
+            .help("Clear all")
         }
     }
 
     private var searchField: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 9, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            TextField("Search", text: $searchQuery)
+            TextField("Search files", text: $searchQuery)
                 .textFieldStyle(.plain)
-                .font(.system(size: 10, weight: .regular))
-                .frame(width: 84)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(.primary)
 
             if !searchQuery.isEmpty {
                 Button(action: { searchQuery = "" }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
+                        .font(.system(size: 12))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NotchIconButtonStyle(size: 18, cornerRadius: 9, tint: .secondary))
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(.ultraThinMaterial)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(Color.white.opacity(0.15), lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.white.opacity(0.18), lineWidth: 0.7)
         )
-    }
-
-    private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) {
-                item, _ in
-                if let data = item as? Data,
-                    let url = URL(dataRepresentation: data, relativeTo: nil)
-                {
-                    fileShelfManager.addFile(url: url)
-                }
+        .onHover { hovering in
+            if !hovering {
+                NSCursor.arrow.set()
             }
         }
-        return true
     }
 
     private func select(_ file: ShelfFile) {
@@ -258,10 +232,8 @@ struct FileShelfItemView: View {
                     Button(action: onDelete) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.red)
-                            .background(Circle().fill(Color(NSColor.windowBackgroundColor)))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(NotchIconButtonStyle(size: 20, cornerRadius: 10, tint: .red, isDestructive: true))
                     .offset(x: 5, y: -5)
                 }
             }

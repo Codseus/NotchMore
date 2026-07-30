@@ -27,6 +27,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         false
     @AppStorage("enableCtrlXCutPaste") private var enableCtrlXCutPaste: Bool = false
     @AppStorage("enableClipboardHistory") private var enableClipboardHistory: Bool = false
+    @AppStorage("autoCopyScreenshotsToClipboard") private var autoCopyScreenshotsToClipboard:
+        Bool = false
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon: Bool = true
     @AppStorage("enableFileShelf") private var enableFileShelf: Bool = false
     @AppStorage("launchAtLogin") private var launchAtLogin: Bool = false
@@ -315,6 +317,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.updateClipboardMonitoring() }
             .store(in: &cancellables)
 
+        UserDefaults.standard.publisher(for: \.autoCopyScreenshotsToClipboard)
+            .sink { [weak self] _ in self?.updateClipboardMonitoring() }
+            .store(in: &cancellables)
+
         UserDefaults.standard.publisher(for: \.enablePasteWithoutFormatting)
             .sink { [weak self] _ in self?.updatePasteMonitoring() }
             .store(in: &cancellables)
@@ -575,6 +581,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             clipboardManager.stopMonitoring()
         }
+        clipboardManager.updateScreenshotMonitoring(
+            isEnabled: enableClipboardHistory && autoCopyScreenshotsToClipboard
+        )
     }
 
     func updatePasteMonitoring() {
@@ -635,6 +644,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension UserDefaults {
     @objc dynamic var enableClipboardHistory: Bool {
         return bool(forKey: "enableClipboardHistory")
+    }
+    @objc dynamic var autoCopyScreenshotsToClipboard: Bool {
+        return bool(forKey: "autoCopyScreenshotsToClipboard")
     }
     @objc dynamic var enablePasteWithoutFormatting: Bool {
         return bool(forKey: "enablePasteWithoutFormatting")

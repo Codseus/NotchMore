@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AVFoundation
 
 // MARK: - Combined Notch
 
@@ -10,8 +11,16 @@ struct CombinedNotchView: View {
 
     @AppStorage("enableFileShelf") private var enableFileShelf: Bool = false
     @AppStorage("enableClipboardHistory") private var enableClipboardHistory: Bool = false
+    @AppStorage("enableAirDropSupport") private var enableAirDropSupport: Bool = false
+    @AppStorage("enableLocalSendSupport") private var enableLocalSendSupport: Bool = false
     @State private var isPanelDropTargetActive: Bool = false
+    @State private var activeDropDestination: DropDestination = .fileShelf
+    @State private var dropResetToken = UUID()
+    @State private var dropOverlaySuppressionToken: UUID?
+    @State private var isMirrorActive: Bool = false
+    @State private var isRequestingCameraPermission: Bool = false
     let onOpenSettings: () -> Void
+    var onMirrorActiveChange: ((Bool) -> Void)?
     var onHover: ((Bool) -> Void)?
     var onDropTargetChange: ((Bool) -> Void)?
     var onDropProviders: (([NSItemProvider]) -> Bool)?
@@ -23,6 +32,7 @@ struct CombinedNotchView: View {
         fileShelfManager: FileShelfManager,
         previewScale: CGFloat = 1.0,
         onOpenSettings: @escaping () -> Void = {},
+        onMirrorActiveChange: ((Bool) -> Void)? = nil,
         onHover: ((Bool) -> Void)? = nil,
         onDropTargetChange: ((Bool) -> Void)? = nil,
         onDropProviders: (([NSItemProvider]) -> Bool)? = nil,
@@ -32,6 +42,7 @@ struct CombinedNotchView: View {
         self.clipboardManager = clipboardManager
         self.fileShelfManager = fileShelfManager
         self.onOpenSettings = onOpenSettings
+        self.onMirrorActiveChange = onMirrorActiveChange
         self.onHover = onHover
         self.onDropTargetChange = onDropTargetChange
         self.onDropProviders = onDropProviders
@@ -39,7 +50,10 @@ struct CombinedNotchView: View {
     }
 
     private var sectionCount: Int {
-        NotchLayout.panelSectionCount(
+        if isMirrorActive {
+            return 1
+        }
+        return NotchLayout.panelSectionCount(
             enableFileShelf: enableFileShelf, showClipboard: enableClipboardHistory)
     }
 
@@ -84,68 +98,168 @@ struct CombinedNotchView: View {
         Color.white.opacity(0.055)
     }
 
-    private func handlePanelDrop(providers: [NSItemProvider]) -> Bool {
-        guard enableFileShelf, !providers.isEmpty else { return false }
+    fileprivate enum DropDestination: String, Identifiable {
+        case fileShelf
+        case airDrop
+        case localSend
 
-        if let onDropProviders {
-            return onDropProviders(providers)
-        }
+        var id: String { rawValue }
 
-        for provider in providers {
-            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) {
-                item, _ in
-                guard let url = Self.url(from: item) else { return }
-                DispatchQueue.main.async {
-                    fileShelfManager.addFile(url: url)
-                }
+        var title: String {
+            switch self {
+            case .fileShelf:
+                return "File Shelf"
+            case .airDrop:
+                return "AirDrop"
+            case .localSend:
+                return "LocalSend"
             }
         }
 
-        return true
+        var systemImage: String {
+            switch self {
+            case .fileShelf:
+                return "folder.badge.plus"
+            case .airDrop:
+                return "airplayaudio"
+            case .localSend:
+                return "network"
+            }
+        }
     }
 
-    private static func url(from item: NSSecureCoding?) -> URL? {
-        if let url = item as? URL {
-            return url
+    private var dropDestinations: [DropDestination] {
+        guard enableFileShelf else { return [] }
+
+        var destinations: [DropDestination] = [.fileShelf]
+        if enableAirDropSupport {
+            destinations.append(.airDrop)
         }
-        if let data = item as? Data {
-            return URL(dataRepresentation: data, relativeTo: nil)
+        if enableLocalSendSupport {
+            destinations.append(.localSend)
         }
-        if let string = item as? String {
-            return URL(string: string)
+        return destinations
+    }
+
+    private func handlePanelDrop(
+        providers: [NSItemProvider],
+        destination explicitDestination: DropDestination? = nil
+    ) -> Bool {
+        guard enableFileShelf, !providers.isEmpty else { return false }
+
+        switch explicitDestination ?? currentDropDestination {
+        case .airDrop:
+            AirDropManager.loadURLs(from: providers) { urls in
+                AirDropManager.send(urls: urls)
+            }
+            return true
+        case .localSend:
+            AirDropManager.loadURLs(from: providers) { urls in
+                LocalSendManager.send(urls: urls)
+            }
+            return true
+        case .fileShelf:
+            if let onDropProviders {
+                return onDropProviders(providers)
+            }
+
+            AirDropManager.loadURLs(from: providers) { urls in
+                for url in urls {
+                    fileShelfManager.addFile(url: url)
+                }
+            }
+            return true
         }
-        return nil
+    }
+
+    private var currentDropDestination: DropDestination {
+        let destinations = dropDestinations
+        guard destinations.count > 1 else { return .fileShelf }
+        return activeDropDestination
+    }
+
+    private func dropDestination(atRelativeX relativeX: CGFloat) -> DropDestination {
+        let destinations = dropDestinations
+        guard destinations.count > 1 else { return .fileShelf }
+
+        let relativeX = max(0, min(totalWidth, relativeX))
+        let slotWidth = totalWidth / CGFloat(destinations.count)
+        let index = min(destinations.count - 1, max(0, Int(relativeX / slotWidth)))
+        return destinations[index]
+    }
+
+    private func markPanelDropActive(at location: CGPoint) {
+        guard dropOverlaySuppressionToken == nil else { return }
+        isPanelDropTargetActive = true
+        activeDropDestination = dropDestination(atRelativeX: location.x)
+        scheduleDropStateReset()
+    }
+
+    private func resetPanelDropState() {
+        isPanelDropTargetActive = false
+        activeDropDestination = .fileShelf
+        dropResetToken = UUID()
+    }
+
+    private func scheduleDropStateReset() {
+        let token = UUID()
+        dropResetToken = token
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            guard dropResetToken == token else { return }
+            resetPanelDropState()
+        }
+    }
+
+    private func hideDropOverlayAfterSuccessfulDrop() {
+        let token = UUID()
+        dropOverlaySuppressionToken = token
+        resetPanelDropState()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard dropOverlaySuppressionToken == token else { return }
+            dropOverlaySuppressionToken = nil
+        }
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: NotchLayout.sectionSpacing) {
-            if enableFileShelf {
+            if isMirrorActive {
                 sectionContainer {
-                    FileShelfView(
-                        fileShelfManager: fileShelfManager,
+                    MirrorNotchView(
                         panelWidth: panelWidth,
                         panelHeight: panelHeight,
-                        onExternalInteraction: onExternalInteraction
+                        onClose: { isMirrorActive = false }
                     )
                 }
-            }
+            } else {
+                if enableFileShelf {
+                    sectionContainer {
+                        FileShelfView(
+                            fileShelfManager: fileShelfManager,
+                            panelWidth: panelWidth,
+                            panelHeight: panelHeight,
+                            onExternalInteraction: onExternalInteraction
+                        )
+                    }
+                }
 
-            sectionContainer {
-                ExpandedNotchView(
-                    mediaManager: mediaManager,
-                    panelWidth: panelWidth,
-                    panelHeight: panelHeight,
-                    onOpenSettings: onOpenSettings,
-                )
-            }
-
-            if enableClipboardHistory {
                 sectionContainer {
-                    ClipboardHistoryView(
-                        clipboardManager: clipboardManager,
+                    ExpandedNotchView(
+                        mediaManager: mediaManager,
                         panelWidth: panelWidth,
-                        panelHeight: panelHeight
+                        panelHeight: panelHeight,
+                        onOpenSettings: onOpenSettings,
+                        onOpenMirror: openMirror
                     )
+                }
+
+                if enableClipboardHistory {
+                    sectionContainer {
+                        ClipboardHistoryView(
+                            clipboardManager: clipboardManager,
+                            panelWidth: panelWidth,
+                            panelHeight: panelHeight
+                        )
+                    }
                 }
             }
         }
@@ -154,26 +268,118 @@ struct CombinedNotchView: View {
         .frame(width: totalWidth, height: totalHeight)
         .contentShape(Rectangle())
         .overlay {
-            if isPanelDropTargetActive && enableFileShelf {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .inset(by: 3)
-                    .stroke(
-                        Color.accentColor.opacity(0.9),
-                        style: StrokeStyle(lineWidth: 2.2, dash: [8, 6])
-                    )
-                    .shadow(color: Color.accentColor.opacity(0.35), radius: 6, x: 0, y: 0)
-                    .allowsHitTesting(false)
+            if isPanelDropTargetActive && enableFileShelf && dropOverlaySuppressionToken == nil {
+                dropOverlay
             }
         }
-        .onDrop(of: [.fileURL], isTargeted: $isPanelDropTargetActive) { providers in
-            handlePanelDrop(providers: providers)
-        }
+        .onDrop(
+            of: [.fileURL],
+            delegate: NotchPanelDropDelegate(
+                isTargeted: $isPanelDropTargetActive,
+                activeDestination: $activeDropDestination,
+                onDragLocation: { location in
+                    markPanelDropActive(at: location)
+                },
+                destinationForLocation: { location in
+                    dropDestination(atRelativeX: location.x)
+                },
+                performDrop: { providers, destination in
+                    handlePanelDrop(providers: providers, destination: destination)
+                },
+                resetDropState: {
+                    resetPanelDropState()
+                },
+                hideDropOverlayAfterSuccessfulDrop: {
+                    hideDropOverlayAfterSuccessfulDrop()
+                }
+            )
+        )
         .onChange(of: isPanelDropTargetActive, initial: false) { oldValue, newValue in
+            if !newValue {
+                activeDropDestination = .fileShelf
+                dropResetToken = UUID()
+            }
             onDropTargetChange?(newValue)
         }
         .onHover { isHovering in
+            if isHovering {
+                NSCursor.arrow.set()
+            }
             onHover?(isHovering)
         }
+        .onChange(of: isMirrorActive, initial: true) { _, active in
+            onMirrorActiveChange?(active)
+        }
+    }
+
+    @ViewBuilder
+    private var dropOverlay: some View {
+        if dropDestinations.count > 1 {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.black.opacity(0.74))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    )
+
+                HStack(spacing: 8) {
+                    ForEach(dropDestinations) { destination in
+                        dropZoneLabel(
+                            title: destination.title,
+                            systemImage: destination.systemImage,
+                            isActive: destination == currentDropDestination
+                        )
+                    }
+                }
+                .padding(.horizontal, contentHorizontalInset)
+                .padding(.top, 10)
+            }
+            .frame(width: totalWidth, height: totalHeight)
+            .allowsHitTesting(false)
+        } else {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.black.opacity(0.74))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.75), lineWidth: 1.4)
+                    )
+
+                dropZoneLabel(
+                    title: "File Shelf",
+                    systemImage: "folder.badge.plus",
+                    isActive: true
+                )
+                .padding(.horizontal, contentHorizontalInset)
+                .padding(.top, 10)
+            }
+            .frame(width: totalWidth, height: totalHeight)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func dropZoneLabel(title: String, systemImage: String, isActive: Bool) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: isActive ? 26 : 22, weight: .semibold))
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+        }
+        .foregroundStyle(isActive ? Color.primary : Color.secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(isActive ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.055))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(
+                    isActive ? Color.accentColor.opacity(0.85) : Color.white.opacity(0.12),
+                    lineWidth: isActive ? 1.4 : 0.8
+                )
+        )
+        .shadow(color: isActive ? Color.accentColor.opacity(0.22) : Color.clear, radius: 6, x: 0, y: 0)
     }
 
     private func sectionContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
@@ -184,26 +390,86 @@ struct CombinedNotchView: View {
                     .fill(sectionFillColor)
             )
     }
+
+    private func openMirror() {
+        guard !isRequestingCameraPermission else { return }
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized, .denied, .restricted:
+            isMirrorActive = true
+        case .notDetermined:
+            isRequestingCameraPermission = true
+            PermissionManager.requestCameraAccess { _ in
+                isRequestingCameraPermission = false
+                isMirrorActive = true
+            }
+        @unknown default:
+            isMirrorActive = true
+        }
+    }
+}
+
+private struct NotchPanelDropDelegate: DropDelegate {
+    @Binding var isTargeted: Bool
+    @Binding var activeDestination: CombinedNotchView.DropDestination
+
+    let onDragLocation: (CGPoint) -> Void
+    let destinationForLocation: (CGPoint) -> CombinedNotchView.DropDestination
+    let performDrop: ([NSItemProvider], CombinedNotchView.DropDestination) -> Bool
+    let resetDropState: () -> Void
+    let hideDropOverlayAfterSuccessfulDrop: () -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [UTType.fileURL.identifier])
+    }
+
+    func dropEntered(info: DropInfo) {
+        updateTarget(info: info)
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        updateTarget(info: info)
+        return DropProposal(operation: .copy)
+    }
+
+    func dropExited(info: DropInfo) {
+        resetDropState()
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        let destination = destinationForLocation(info.location)
+        let providers = info.itemProviders(for: [UTType.fileURL.identifier])
+        hideDropOverlayAfterSuccessfulDrop()
+        return performDrop(providers, destination)
+    }
+
+    private func updateTarget(info: DropInfo) {
+        onDragLocation(info.location)
+    }
 }
 
 // MARK: - Media Panel
 
 struct ExpandedNotchView: View {
     @ObservedObject var mediaManager: MediaManager
+    @ObservedObject private var desktopCleaner = DesktopCleanerManager.shared
     let panelWidth: CGFloat
     let panelHeight: CGFloat
     let onOpenSettings: () -> Void
+    let onOpenMirror: () -> Void
 
     init(
         mediaManager: MediaManager,
         panelWidth: CGFloat,
         panelHeight: CGFloat,
         onOpenSettings: @escaping () -> Void = {},
+        onOpenMirror: @escaping () -> Void = {},
     ) {
         self.mediaManager = mediaManager
         self.panelWidth = panelWidth
         self.panelHeight = panelHeight
         self.onOpenSettings = onOpenSettings
+        self.onOpenMirror = onOpenMirror
     }
 
     private var hasMedia: Bool {
@@ -275,15 +541,34 @@ struct ExpandedNotchView: View {
             } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 11.5, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 24, height: 24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                    )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
             .help("Open Settings")
+
+            Button {
+                desktopCleaner.toggle()
+            } label: {
+                Image(systemName: desktopCleaner.isDesktopClean ? "desktopcomputer.trianglebadge.exclamationmark" : "desktopcomputer")
+                    .font(.system(size: 11.5, weight: .semibold))
+            }
+            .buttonStyle(
+                NotchIconButtonStyle(
+                    size: 24,
+                    cornerRadius: 7,
+                    tint: .primary,
+                    isActive: desktopCleaner.isDesktopClean
+                )
+            )
+            .help(desktopCleaner.isDesktopClean ? "Show Desktop Icons" : "Clean Desktop")
+
+            Button {
+                onOpenMirror()
+            } label: {
+                Image(systemName: "camera")
+                    .font(.system(size: 11.5, weight: .semibold))
+            }
+            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
+            .help("Open Mirror")
 
             Spacer(minLength: 0)
             Label {
@@ -491,10 +776,8 @@ struct ExpandedNotchView: View {
                         ? "speaker.wave.2.fill" : "speaker.slash.fill"
                 )
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
 
             Slider(value: volumeBinding, in: 0...1)
                 .controlSize(.small)
@@ -509,30 +792,230 @@ struct NotchMediaControlButton: View {
     let action: () -> Void
     let icon: String
 
-    @State private var isHovered = false
-
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, minHeight: 24)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(isHovered ? 0.18 : 0.12))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(Color.white.opacity(isHovered ? 0.24 : 0.12), lineWidth: 0.8)
-                )
-                .scaleEffect(isHovered ? 1.05 : 1.0)
         }
-        .buttonStyle(.plain)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
-                isHovered = hovering
+        .buttonStyle(NotchPillButtonStyle(height: 26, fillsAvailableWidth: true))
+    }
+}
+
+// MARK: - Mirror
+
+struct MirrorNotchView: View {
+    let panelWidth: CGFloat
+    let panelHeight: CGFloat
+    let onClose: () -> Void
+
+    @State private var cameraPermission = AVCaptureDevice.authorizationStatus(for: .video)
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Group {
+                switch cameraPermission {
+                case .authorized:
+                    CameraPreviewView()
+                case .notDetermined:
+                    permissionView
+                case .denied, .restricted:
+                    unavailableView(
+                        title: "Camera Access Needed",
+                        message: "Enable camera access in System Settings to use Mirror."
+                    )
+                @unknown default:
+                    unavailableView(
+                        title: "Camera Unavailable",
+                        message: "NotchMore could not access the camera."
+                    )
+                }
+            }
+            .frame(width: panelWidth, height: panelHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+            }
+            .buttonStyle(NotchIconButtonStyle(size: 28, cornerRadius: 14))
+            .padding(12)
+            .help("Close Mirror")
+        }
+        .frame(width: panelWidth, height: panelHeight)
+        .onAppear {
+            refreshCameraPermission()
+        }
+    }
+
+    private var permissionView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "camera")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(.secondary)
+
+            Text("Open Mirror")
+                .font(.system(size: 15, weight: .semibold))
+
+            Text("Camera access is needed for the live mirror preview.")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
+
+            Button {
+                requestCameraPermission()
+            } label: {
+                Text("Allow Camera")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(NotchPillButtonStyle(height: 28))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func unavailableView(title: String, message: String) -> some View {
+        VStack(spacing: 9) {
+            Image(systemName: "camera.fill")
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+
+            Text(message)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 26)
+
+            Button {
+                PermissionManager.openSettings(for: .camera)
+            } label: {
+                Text("Open Settings")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .buttonStyle(NotchPillButtonStyle(height: 28))
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func refreshCameraPermission() {
+        cameraPermission = AVCaptureDevice.authorizationStatus(for: .video)
+    }
+
+    private func requestCameraPermissionIfNeeded(force: Bool = false) {
+        requestCameraPermission()
+    }
+
+    private func requestCameraPermission() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        cameraPermission = status
+
+        guard status == .notDetermined else {
+            if status == .denied || status == .restricted {
+                PermissionManager.openSettings(for: .camera)
+            }
+            return
+        }
+
+        PermissionManager.requestCameraAccess { _ in
+            refreshCameraPermission()
+        }
+    }
+}
+
+struct CameraPreviewView: NSViewRepresentable {
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> CameraPreviewNSView {
+        let view = CameraPreviewNSView()
+        view.previewLayer.session = context.coordinator.session
+        context.coordinator.start()
+        return view
+    }
+
+    func updateNSView(_ nsView: CameraPreviewNSView, context: Context) {
+        nsView.previewLayer.session = context.coordinator.session
+    }
+
+    static func dismantleNSView(_ nsView: CameraPreviewNSView, coordinator: Coordinator) {
+        coordinator.stop()
+        nsView.previewLayer.session = nil
+    }
+
+    final class Coordinator {
+        let session = AVCaptureSession()
+        private let sessionQueue = DispatchQueue(label: "codseus.NotchMore.cameraPreview")
+        private var isConfigured = false
+
+        func start() {
+            sessionQueue.async { [weak self] in
+                guard let self else { return }
+                if !self.isConfigured {
+                    self.configureSession()
+                }
+                guard self.isConfigured, !self.session.isRunning else { return }
+                self.session.startRunning()
             }
         }
+
+        func stop() {
+            sessionQueue.async { [weak self] in
+                guard let self, self.session.isRunning else { return }
+                self.session.stopRunning()
+            }
+        }
+
+        private func configureSession() {
+            session.beginConfiguration()
+            session.sessionPreset = .medium
+            defer { session.commitConfiguration() }
+
+            let device =
+                AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
+                ?? AVCaptureDevice.default(for: .video)
+
+            guard let device, let input = try? AVCaptureDeviceInput(device: device),
+                  session.canAddInput(input)
+            else { return }
+
+            session.addInput(input)
+            isConfigured = true
+        }
+    }
+}
+
+final class CameraPreviewNSView: NSView {
+    override func makeBackingLayer() -> CALayer {
+        AVCaptureVideoPreviewLayer()
+    }
+
+    var previewLayer: AVCaptureVideoPreviewLayer {
+        layer as! AVCaptureVideoPreviewLayer
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.connection?.automaticallyAdjustsVideoMirroring = false
+        previewLayer.connection?.isVideoMirrored = true
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        wantsLayer = true
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.connection?.automaticallyAdjustsVideoMirroring = false
+        previewLayer.connection?.isVideoMirrored = true
+    }
+
+    override func layout() {
+        super.layout()
+        previewLayer.frame = bounds
+        previewLayer.videoGravity = .resizeAspectFill
+        previewLayer.connection?.automaticallyAdjustsVideoMirroring = false
+        previewLayer.connection?.isVideoMirrored = true
     }
 }
