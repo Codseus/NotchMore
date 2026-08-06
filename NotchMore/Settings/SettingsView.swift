@@ -97,6 +97,13 @@ struct GeneralSettingsView: View {
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
     @AppStorage("launchAtLogin") private var launchAtLogin = false
     @AppStorage("hoverDelay") private var hoverDelay = 0.0
+    @AppStorage("triggerZoneWidth") private var triggerZoneWidth =
+        Double(NotchConstants.defaultTriggerWidth)
+    @AppStorage("triggerZoneHeight") private var triggerZoneHeight =
+        Double(NotchConstants.defaultTriggerHeight)
+
+    @State private var isEditingTriggerZone = false
+
     // Permissions state
     @State private var accessibilityGranted: Bool =
         PermissionManager.isGranted(.accessibility)
@@ -125,6 +132,56 @@ struct GeneralSettingsView: View {
                                     .foregroundColor(.secondary)
                             }
                             Slider(value: $hoverDelay, in: 0...1, step: 0.1)
+                        }
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack {
+                                Text("Trigger Zone")
+                                    .font(.system(size: 13, weight: .medium))
+                                Spacer()
+                                Button("Show") {
+                                    showTriggerZonePreviewTemporarily()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Width")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Text("\(Int(triggerZoneWidth)) px")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Slider(
+                                    value: $triggerZoneWidth,
+                                    in: 120...500,
+                                    step: 10,
+                                    onEditingChanged: triggerZoneEditingChanged
+                                )
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Height")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                    Text("\(Int(triggerZoneHeight)) px")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Slider(
+                                    value: $triggerZoneHeight,
+                                    in: 1...80,
+                                    step: 1,
+                                    onEditingChanged: triggerZoneEditingChanged
+                                )
+                            }
                         }
                     }
                 }
@@ -261,7 +318,59 @@ struct GeneralSettingsView: View {
             }
             .padding()
         }
+        .onAppear {
+            refreshPermissions()
+            normalizeTriggerZoneValues()
+        }
+        .onDisappear {
+            TriggerZonePreviewManager.shared.hide()
+        }
+        .onChange(of: triggerZoneWidth) { _, _ in
+            normalizeTriggerZoneValues()
+            if isEditingTriggerZone {
+                showTriggerZonePreview()
+            }
+        }
+        .onChange(of: triggerZoneHeight) { _, _ in
+            normalizeTriggerZoneValues()
+            if isEditingTriggerZone {
+                showTriggerZonePreview()
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func triggerZoneEditingChanged(_ isEditing: Bool) {
+        isEditingTriggerZone = isEditing
+        if isEditing {
+            showTriggerZonePreview()
+        } else {
+            showTriggerZonePreviewTemporarily()
+        }
+    }
+
+    private func showTriggerZonePreview() {
+        TriggerZonePreviewManager.shared.show(
+            width: CGFloat(triggerZoneWidth),
+            height: CGFloat(triggerZoneHeight)
+        )
+    }
+
+    private func showTriggerZonePreviewTemporarily() {
+        TriggerZonePreviewManager.shared.showTemporarily(
+            width: CGFloat(triggerZoneWidth),
+            height: CGFloat(triggerZoneHeight),
+            duration: 1.5
+        )
+    }
+
+    private func normalizeTriggerZoneValues() {
+        if triggerZoneWidth < 120 || triggerZoneWidth > 500 {
+            triggerZoneWidth = Double(NotchConstants.defaultTriggerWidth)
+        }
+        if triggerZoneHeight < 1 || triggerZoneHeight > 80 {
+            triggerZoneHeight = Double(NotchConstants.defaultTriggerHeight)
+        }
     }
 
     private func refreshPermissionsSoon() {

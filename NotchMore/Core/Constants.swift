@@ -6,11 +6,11 @@ enum NotchConstants {
     static let basePanelWidth: CGFloat = 305
     static let basePanelHeight: CGFloat = 305
 
-    // Width of the notch hover trigger zone
-    static let notchTriggerWidth: CGFloat = 200
+    // Default notch hover trigger zone size
+    static let defaultTriggerWidth: CGFloat = 200
 
-    // Extra pixels below the notch for hover detection
-    static let hoverPadding: CGFloat = 5
+    // Default pixels below the menu bar for hover detection
+    static let defaultTriggerHeight: CGFloat = 5
 
     // Maximum clipboard history items
     static let maxClipboardItems = 50

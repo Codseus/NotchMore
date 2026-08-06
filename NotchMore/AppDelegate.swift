@@ -35,6 +35,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @AppStorage("invertMouseScroll") private var invertMouseScroll: Bool = false
     @AppStorage("invertTrackpadScroll") private var invertTrackpadScroll: Bool = false
     @AppStorage("hoverDelay") private var hoverDelay: Double = 0.0
+    @AppStorage("triggerZoneWidth") private var triggerZoneWidth: Double =
+        Double(NotchConstants.defaultTriggerWidth)
+    @AppStorage("triggerZoneHeight") private var triggerZoneHeight: Double =
+        Double(NotchConstants.defaultTriggerHeight)
     @AppStorage("enableWindowSwitcher") private var enableWindowSwitcher: Bool = false
     @AppStorage("enableDockPreviews") private var enableDockPreviews: Bool = false
     var windowSwitcherWindow: NSWindow?
@@ -262,7 +266,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             },
             isFileShelfEnabled: { [weak self] in self?.enableFileShelf ?? false },
             isClipboardEnabled: { [weak self] in self?.enableClipboardHistory ?? false },
-            hoverDelay: { [weak self] in self?.hoverDelay ?? 0.0 }
+            hoverDelay: { [weak self] in self?.hoverDelay ?? 0.0 },
+            triggerWidth: { [weak self] in
+                guard let self, self.triggerZoneWidth > 0 else {
+                    return NotchConstants.defaultTriggerWidth
+                }
+                return CGFloat(self.triggerZoneWidth)
+            },
+            triggerHeight: { [weak self] in
+                guard let self, self.triggerZoneHeight > 0 else {
+                    return NotchConstants.defaultTriggerHeight
+                }
+                return CGFloat(self.triggerZoneHeight)
+            }
         )
         notchPanelController?.start()
     }
@@ -336,6 +352,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         UserDefaults.standard.publisher(for: \.enableFileShelf)
             .sink { [weak self] _ in self?.notchPanelController?.updateContentWindowFrame() }
+            .store(in: &cancellables)
+
+        UserDefaults.standard.publisher(for: \.triggerZoneWidth)
+            .sink { [weak self] _ in self?.notchPanelController?.updateTriggerWindows() }
+            .store(in: &cancellables)
+
+        UserDefaults.standard.publisher(for: \.triggerZoneHeight)
+            .sink { [weak self] _ in self?.notchPanelController?.updateTriggerWindows() }
             .store(in: &cancellables)
 
         UserDefaults.standard.publisher(for: \.launchAtLogin)
@@ -656,6 +680,12 @@ extension UserDefaults {
     }
     @objc dynamic var enableFileShelf: Bool {
         return bool(forKey: "enableFileShelf")
+    }
+    @objc dynamic var triggerZoneWidth: Double {
+        return double(forKey: "triggerZoneWidth")
+    }
+    @objc dynamic var triggerZoneHeight: Double {
+        return double(forKey: "triggerZoneHeight")
     }
     @objc dynamic var launchAtLogin: Bool {
         return bool(forKey: "launchAtLogin")

@@ -12,6 +12,8 @@ final class NotchPanelController {
     private let isFileShelfEnabled: () -> Bool
     private let isClipboardEnabled: () -> Bool
     private let hoverDelay: () -> Double
+    private let triggerWidth: () -> CGFloat
+    private let triggerHeight: () -> CGFloat
 
     private var dynamicNotch: DynamicNotch<CombinedNotchView, EmptyView, EmptyView>?
     private var isDynamicNotchVisible = false
@@ -45,7 +47,9 @@ final class NotchPanelController {
         onOpenSettings: @escaping () -> Void,
         isFileShelfEnabled: @escaping () -> Bool,
         isClipboardEnabled: @escaping () -> Bool,
-        hoverDelay: @escaping () -> Double
+        hoverDelay: @escaping () -> Double,
+        triggerWidth: @escaping () -> CGFloat,
+        triggerHeight: @escaping () -> CGFloat
     ) {
         self.mediaManager = mediaManager
         self.clipboardManager = clipboardManager
@@ -54,6 +58,8 @@ final class NotchPanelController {
         self.isFileShelfEnabled = isFileShelfEnabled
         self.isClipboardEnabled = isClipboardEnabled
         self.hoverDelay = hoverDelay
+        self.triggerWidth = triggerWidth
+        self.triggerHeight = triggerHeight
     }
 
     func showNotch() {
@@ -268,6 +274,11 @@ final class NotchPanelController {
         stopHoverValidationTimer()
         hideNotch()
         rebuildDynamicNotch()
+    }
+
+    func updateTriggerWindows() {
+        setupTriggerWindows()
+        refreshPointerHoverState()
     }
 
     private func configureNotchWindowLevel() {
@@ -491,14 +502,15 @@ final class NotchPanelController {
         let screenFrame = screen.frame
         let menuBarHeight = NSApplication.shared.mainMenu?.menuBarHeight ?? 24
         let NotchMore = screenFrame.maxY - menuBarHeight
-        let notchWidth = NotchConstants.notchTriggerWidth
+        let notchWidth = max(80, min(screenFrame.width, triggerWidth()))
+        let hoverPadding = max(1, min(120, triggerHeight()))
         let notchX = screenFrame.minX + (screenFrame.width - notchWidth) / 2
         let base = NSRect(x: notchX, y: NotchMore, width: notchWidth, height: menuBarHeight)
         return NSRect(
             x: base.origin.x - 10,
-            y: base.origin.y - NotchConstants.hoverPadding,
+            y: base.origin.y - hoverPadding,
             width: base.width + 20,
-            height: base.height + NotchConstants.hoverPadding
+            height: base.height + hoverPadding
         )
     }
 
