@@ -28,7 +28,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4755E6BB2E552CAF002F67F0 /* NotchMore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = NotchMore.app; path = NotchMoreDebug.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4755E6BB2E552CAF002F67F0 /* NotchMoreDebug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchMoreDebug.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -64,7 +64,7 @@
 		4755E6BC2E552CAF002F67F0 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4755E6BB2E552CAF002F67F0 /* NotchMore.app */,
+				4755E6BB2E552CAF002F67F0 /* NotchMoreDebug.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,7 +95,7 @@
 				47A100032FEA700100C5A79C /* Sparkle */,
 			);
 			productName = NotchMore;
-			productReference = 4755E6BB2E552CAF002F67F0 /* NotchMore.app */;
+			productReference = 4755E6BB2E552CAF002F67F0 /* NotchMoreDebug.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -288,7 +288,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 22DW3H89N4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -311,7 +311,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.4;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = codseus.NotchMore.Debug;
 				PRODUCT_NAME = NotchMoreDebug;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -338,7 +338,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 4;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = 22DW3H89N4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -359,7 +359,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.4;
-				MARKETING_VERSION = 1.2.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = codseus.NotchMore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
