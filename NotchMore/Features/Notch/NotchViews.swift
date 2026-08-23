@@ -19,6 +19,7 @@ struct CombinedNotchView: View {
     @State private var dropOverlaySuppressionToken: UUID?
     @State private var isMirrorActive: Bool = false
     @State private var isRequestingCameraPermission: Bool = false
+    let usesFloatingStyle: Bool
     let onOpenSettings: () -> Void
     var onMirrorActiveChange: ((Bool) -> Void)?
     var onHover: ((Bool) -> Void)?
@@ -31,6 +32,7 @@ struct CombinedNotchView: View {
         clipboardManager: ClipboardManager,
         fileShelfManager: FileShelfManager,
         previewScale: CGFloat = 1.0,
+        usesFloatingStyle: Bool = false,
         onOpenSettings: @escaping () -> Void = {},
         onMirrorActiveChange: ((Bool) -> Void)? = nil,
         onHover: ((Bool) -> Void)? = nil,
@@ -41,6 +43,7 @@ struct CombinedNotchView: View {
         self.mediaManager = mediaManager
         self.clipboardManager = clipboardManager
         self.fileShelfManager = fileShelfManager
+        self.usesFloatingStyle = usesFloatingStyle
         self.onOpenSettings = onOpenSettings
         self.onMirrorActiveChange = onMirrorActiveChange
         self.onHover = onHover
@@ -75,7 +78,7 @@ struct CombinedNotchView: View {
     }
 
     private var totalWidth: CGFloat {
-        scaledLayout.totalWidth
+        scaledLayout.totalWidth - floatingHorizontalInsetAdjustment
     }
 
     private var totalHeight: CGFloat {
@@ -91,11 +94,23 @@ struct CombinedNotchView: View {
     }
 
     private var contentHorizontalInset: CGFloat {
-        scaledLayout.contentHorizontalInset
+        usesFloatingStyle ? 0 : scaledLayout.contentHorizontalInset
+    }
+
+    private var floatingHorizontalInsetAdjustment: CGFloat {
+        usesFloatingStyle ? scaledLayout.contentHorizontalInset * 2 : 0
     }
 
     private var sectionFillColor: Color {
-        Color.white.opacity(0.055)
+        Color.white.opacity(usesFloatingStyle ? 0.055 : 0.04)
+    }
+
+    private var sectionCornerRadius: CGFloat {
+        usesFloatingStyle ? 14 : 24
+    }
+
+    private var sectionBorderOpacity: CGFloat {
+        usesFloatingStyle ? 0.09 : 0.06
     }
 
     fileprivate enum DropDestination: String, Identifiable {
@@ -266,6 +281,14 @@ struct CombinedNotchView: View {
         .padding(.horizontal, contentHorizontalInset)
         .padding(.top, 10)
         .frame(width: totalWidth, height: totalHeight)
+        .background {
+            if usesFloatingStyle {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color(red: 0.025, green: 0.027, blue: 0.03))
+                    .padding(-NotchLayout.expandedSafeAreaInset)
+            }
+        }
+        .environment(\.colorScheme, .dark)
         .contentShape(Rectangle())
         .overlay {
             if isPanelDropTargetActive && enableFileShelf && dropOverlaySuppressionToken == nil {
@@ -301,12 +324,7 @@ struct CombinedNotchView: View {
             }
             onDropTargetChange?(newValue)
         }
-        .onHover { isHovering in
-            if isHovering {
-                NSCursor.arrow.set()
-            }
-            onHover?(isHovering)
-        }
+        .onHover { onHover?($0) }
         .onChange(of: isMirrorActive, initial: true) { _, active in
             onMirrorActiveChange?(active)
         }
@@ -384,10 +402,14 @@ struct CombinedNotchView: View {
 
     private func sectionContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: sectionCornerRadius, style: .continuous))
             .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                RoundedRectangle(cornerRadius: sectionCornerRadius, style: .continuous)
                     .fill(sectionFillColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: sectionCornerRadius, style: .continuous)
+                            .stroke(Color.white.opacity(sectionBorderOpacity), lineWidth: 0.7)
+                    )
             )
     }
 
@@ -477,7 +499,7 @@ struct ExpandedNotchView: View {
     }
 
     private var albumArtSize: CGFloat {
-        min(84, max(48, panelHeight * 0.30))
+        min(76, max(48, panelHeight * 0.29))
     }
 
     private var horizontalPadding: CGFloat {
@@ -485,7 +507,7 @@ struct ExpandedNotchView: View {
     }
 
     private var verticalPadding: CGFloat {
-        min(18, max(12, panelHeight * 0.06))
+        min(14, max(10, panelHeight * 0.05))
     }
 
     private var volumeBinding: Binding<Double> {
@@ -518,7 +540,7 @@ struct ExpandedNotchView: View {
             headerBar
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, verticalPadding)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
 
             Group {
                 if hasMedia {
@@ -545,6 +567,8 @@ struct ExpandedNotchView: View {
             .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
             .help("Open Settings")
 
+            Spacer(minLength: 0)
+
             Button {
                 desktopCleaner.toggle()
             } label: {
@@ -569,43 +593,15 @@ struct ExpandedNotchView: View {
             }
             .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
             .help("Open Mirror")
-
-            Spacer(minLength: 0)
-            Label {
-                Text(hasMedia ? (mediaManager.isPlaying ? "Now Playing" : "Paused") : "Media")
-                    .font(.system(size: 10, weight: .semibold)).lineLimit(1)
-            } icon: {
-                if hasMedia, let icon = mediaManager.sourceIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 12, height: 12)
-                } else {
-                    Image(systemName: hasMedia ? "waveform" : "music.note")
-                }
-            }
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(.ultraThinMaterial)
-            )
-
         }
     }
 
     private var activeMediaView: some View {
-        VStack(spacing: 8, ) {
+        VStack(spacing: 6) {
             HStack {
                 albumArtwork
                 Spacer(minLength: 0)
                 VStack(alignment: .center) {
-                    Text(mediaManager.sourceName)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .padding(.bottom, 1)
-
                     Text(mediaManager.currentTrackTitle)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.primary)
@@ -641,10 +637,10 @@ struct ExpandedNotchView: View {
                         .foregroundStyle(.tertiary)
                 }
                 playbackControls
-                    .padding(.top, 6)
+                    .padding(.top, 4)
                 Spacer(minLength: 0)
                 volumeControls
-                    .padding(.top, 10)
+                    .padding(.top, 6)
                     .padding(.bottom, verticalPadding)
             }
 

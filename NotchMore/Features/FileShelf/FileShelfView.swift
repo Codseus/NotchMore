@@ -100,7 +100,6 @@ struct FileShelfView: View {
         .frame(width: panelWidth, height: panelHeight, alignment: .top)
         .animation(.easeInOut(duration: 0.2), value: panelWidth)
         .animation(.easeInOut(duration: 0.2), value: panelHeight)
-        .resetArrowCursorOnHover()
         .onChange(of: fileShelfManager.shelfFiles.map(\.id)) { _, ids in
             selectedFileIds.formIntersection(Set(ids))
         }
@@ -128,39 +127,7 @@ struct FileShelfView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.secondary)
-
-            TextField("Search files", text: $searchQuery)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundStyle(.primary)
-
-            if !searchQuery.isEmpty {
-                Button(action: { searchQuery = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                }
-                .buttonStyle(NotchIconButtonStyle(size: 18, cornerRadius: 9, tint: .secondary))
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.ultraThinMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(0.18), lineWidth: 0.7)
-        )
-        .onHover { hovering in
-            if !hovering {
-                NSCursor.arrow.set()
-            }
-        }
+        NotchSearchField(placeholder: "Search files", text: $searchQuery)
     }
 
     private func select(_ file: ShelfFile) {
@@ -264,8 +231,10 @@ struct FileShelfItemView: View {
                     lineWidth: isSelected ? 1.1 : 0.7
                 )
         )
-        .scaleEffect(isDragging ? 0.95 : 1.0)
+        .scaleEffect(isDragging ? 0.96 : isHovered ? 1.01 : 1.0)
+        .shadow(color: Color.black.opacity(isHovered ? 0.18 : 0), radius: 5, x: 0, y: 2)
         .animation(.easeOut(duration: 0.15), value: isDragging)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
         .onTapGesture(count: 2) {
             onOpen()
         }

@@ -18,7 +18,7 @@ class MediaManager: ObservableObject {
     private var artworkCache: [String: NSImage] = [:]
     private var artworkCacheOrder: [String] = []
     private var lastArtworkKey: String?
-    private let maxArtworkCacheItems = 8
+    private let maxArtworkCacheItems = 16
 
     init() {
         mediaController.onTrackInfoReceived = { [weak self] trackInfo in
@@ -112,9 +112,8 @@ class MediaManager: ObservableObject {
         let isPlaying = trackInfo.payload.isPlaying ?? false
         let bundleIdentifier = trackInfo.payload.bundleIdentifier
         let appName = trackInfo.payload.applicationName ?? appName(for: bundleIdentifier) ?? "Media"
-        let sourceID = bundleIdentifier ?? appName
-        let trackIdentity = [sourceID, title, artist, album].joined(separator: "\u{1f}")
-        let fallbackTrackIdentity = [sourceID, title, artist].joined(separator: "\u{1f}")
+        let artworkKeys = artworkCacheKeys(title: title, artist: artist, album: album)
+        let stableArtworkKey = artworkKeys.last
 
         let thumbnail: NSImage?
         if isNoMediaUpdate(title: title, artist: artist, isPlaying: isPlaying) {
@@ -125,20 +124,25 @@ class MediaManager: ObservableObject {
                 originalArtwork.thumbnail(maxSize: NotchConstants.artworkThumbnailSize)
                 ?? originalArtwork
             if let thumbnail {
-                cacheArtwork(thumbnail, for: trackIdentity)
-                cacheArtwork(thumbnail, for: fallbackTrackIdentity)
-                lastArtworkKey = fallbackTrackIdentity
+                cacheArtwork(thumbnail, for: artworkKeys)
+                lastArtworkKey = stableArtworkKey
             }
-        } else if let cachedArtwork = artworkCache[trackIdentity] {
+        } else if let cachedArtwork = cachedArtwork(for: artworkKeys) {
             thumbnail = cachedArtwork
-            lastArtworkKey = fallbackTrackIdentity
-        } else if let cachedArtwork = artworkCache[fallbackTrackIdentity] {
-            thumbnail = cachedArtwork
-            lastArtworkKey = fallbackTrackIdentity
-        } else if shouldRetainCurrentArtwork(for: fallbackTrackIdentity, title: title, artist: artist, sourceName: appName) {
+            lastArtworkKey = stableArtworkKey
+        } else if shouldRetainCurrentArtwork(
+            for: stableArtworkKey,
+            title: title,
+            artist: artist
+        ) {
             thumbnail = artwork
+            if let thumbnail {
+                cacheArtwork(thumbnail, for: artworkKeys)
+                lastArtworkKey = stableArtworkKey
+            }
         } else {
             thumbnail = nil
+            lastArtworkKey = nil
         }
 
         let duration = (trackInfo.payload.durationMicros ?? 0) / 1_000_000
@@ -201,10 +205,39 @@ class MediaManager: ObservableObject {
             .deletingPathExtension().lastPathComponent
     }
 
-    private func cacheArtwork(_ artwork: NSImage, for trackIdentity: String) {
-        artworkCache[trackIdentity] = artwork
-        artworkCacheOrder.removeAll { $0 == trackIdentity }
-        artworkCacheOrder.append(trackIdentity)
+    private func artworkCacheKeys(title: String, artist: String, album: String) -> [String] {
+        let title = normalizedArtworkComponent(title)
+        let artist = normalizedArtworkComponent(artist)
+        let album = normalizedArtworkComponent(album)
+
+        var keys: [String] = []
+        if !album.isEmpty {
+            keys.append([title, artist, album].joined(separator: "\u{1f}"))
+        }
+        keys.append([title, artist].joined(separator: "\u{1f}"))
+        return keys
+    }
+
+    private func normalizedArtworkComponent(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    }
+
+    private func cachedArtwork(for keys: [String]) -> NSImage? {
+        for key in keys {
+            if let cached = artworkCache[key] {
+                touchArtworkCacheKey(key)
+                return cached
+            }
+        }
+        return nil
+    }
+
+    private func cacheArtwork(_ artwork: NSImage, for keys: [String]) {
+        for key in keys {
+            artworkCache[key] = artwork
+            touchArtworkCacheKey(key)
+        }
 
         while artworkCacheOrder.count > maxArtworkCacheItems {
             let removedIdentity = artworkCacheOrder.removeFirst()
@@ -212,18 +245,35 @@ class MediaManager: ObservableObject {
         }
     }
 
+    private func touchArtworkCacheKey(_ key: String) {
+        artworkCacheOrder.removeAll { $0 == key }
+        artworkCacheOrder.append(key)
+    }
+
     private func shouldRetainCurrentArtwork(
-        for artworkKey: String,
+        for artworkKey: String?,
         title: String,
-        artist: String,
-        sourceName: String
+        artist: String
     ) -> Bool {
         guard artwork != nil else { return false }
 
-        return lastArtworkKey == artworkKey
-            || (currentTrackTitle == title
-                && currentTrackArtist == artist
-                && self.sourceName == sourceName)
+        if let artworkKey, lastArtworkKey == artworkKey {
+            return true
+        }
+
+        guard normalizedArtworkComponent(currentTrackTitle)
+            == normalizedArtworkComponent(title)
+        else { return false }
+
+        let currentArtist = normalizedArtworkComponent(currentTrackArtist)
+        let incomingArtist = normalizedArtworkComponent(artist)
+        return currentArtist == incomingArtist
+            || isUnknownArtist(currentArtist)
+            || isUnknownArtist(incomingArtist)
+    }
+
+    private func isUnknownArtist(_ artist: String) -> Bool {
+        artist.isEmpty || artist == "unknown artist"
     }
 
     private func isNoMediaUpdate(title: String, artist: String, isPlaying: Bool) -> Bool {

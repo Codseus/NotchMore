@@ -1,114 +1,101 @@
 # NotchMore
 
-NotchMore is a macOS utility that turns the area around the menu bar notch into a compact control surface, and also adds small background tools for everyday Mac workflows.
+NotchMore is a free, open-source macOS utility that turns the area around the menu bar notch into a compact control surface and adds practical tools for everyday Mac workflows.
 
-This project started because I got tired of installing tiny apps that each do exactly one thing. One app for clipboard history. One app for media controls. One app for window switching. One app for file utilities. After a while you end up with a desktop full of little helpers that all solve one narrow problem. I wanted to bring some of these utilities together into one app.
+Instead of installing a separate app for clipboard history, media controls, window switching, file utilities, and other small improvements, NotchMore brings them together in one native app. Every feature is optional and can be enabled or disabled independently.
 
-Contributions and feedback are welcome, if you have any issues, open an issue using the "Bug" label.
+[Website](https://codseus.github.io/NotchMore/) · [Download](https://github.com/Codseus/NotchMore/releases/latest) · [Report a bug](https://github.com/Codseus/NotchMore/issues) · [Request a feature](https://github.com/Codseus/NotchMore/issues)
 
-If you have any feature requests, open an issue using the "Feature Request" label. Please don't request features that are out of this project's scope.
+## Features
 
-### Screens with a notch
+### Notch Panel
 
-<img width="1024" height="342" alt="notchpanel" src="https://github.com/user-attachments/assets/9cacb7ad-6516-49a2-8b41-88c983a6f5ba" />
+- Media playback controls with track information and artwork
+- Clipboard history for text, images, and files
+- Clipboard item previews, pinned items, plain-text paste, and image OCR
+- File shelf with multi-select, copy, copy path, share, and remove actions
+- AirDrop and LocalSend drop targets
+- Quick camera mirror
+- Desktop icon visibility toggle
+- Notch-style HUDs for volume, brightness, battery state, and rest reminders
+- Support for Macs with and without a physical notch
+- Customizable panel trigger area and hover delay
 
-### Screens without a notch
-
-<img width="1024" height="364" alt="floatingpanel" src="https://github.com/user-attachments/assets/e006ffb5-41e5-4b43-988f-5b4b08afede7" />
-
-## Notch Utilities
-
-- Media playback controls with live track information and artwork
-- Clipboard history with support for text, images, files, pinned items, and plain-text paste
-  ![clipboard](https://github.com/user-attachments/assets/2a1ce79c-961e-4fbb-ac08-d3c25263f8d2)
-- File shelf for drag-and-drop access to frequently used files, with multi-select, copy, copy path, share, and remove actions
-  ![file shelf](https://github.com/user-attachments/assets/3d472969-1726-439c-be77-a02b0677f160)
-- Notch-style HUD for volume, brightness, battery state, and rest reminders
-
-## Background Features
+### Window and Dock Tools
 
 - Window switcher with live previews
-![windowswitcher](https://github.com/user-attachments/assets/f7d08f05-52bb-491a-aa34-2c44e5470f36)
+- Dock previews for open applications
+- Close, minimize, maximize, and quit controls from Dock previews
 
-- Dock previews for open apps, with window controls
+### Input and Finder Tools
+
 - Paste without formatting
-- Cut and paste files in Finder like on Windows with Command+X / Command+V
-  ![commandx](https://github.com/user-attachments/assets/a340417e-7f1c-4f38-ad9d-6b86cefce2b9)
-- Three-finger middle click support (doesn't work with 3 finger tap yet)
-- Scroll inversion (very useful if you use a mouse and the trackpad with different scroll directions)
+- Cut and paste files in Finder with `Command+X` and `Command+V`
+- Independent mouse and trackpad scroll direction
+- Three-finger middle click support
 - Caps Lock no-delay mode
-- Eye resting reminder
-  ![restscreen](https://github.com/user-attachments/assets/1ae20693-f139-4abb-b34d-c0e3c9f7e4af)
-  ![resteyespopup](https://github.com/user-attachments/assets/abb65956-0be5-4c32-83bc-0e32227ac2b1)
-- First-run onboarding that lets you choose which features to enable and request the required permissions up front
+
+### Additional Utilities
+
+- Eye-rest reminders with delay and skip controls
+- Automatic screenshot copying to the clipboard
+- First-run onboarding for feature selection and permission setup
+- Automatic updates through Sparkle
 
 ## Requirements
 
 - macOS 15.4 or later
-- Accessibility permission for global input features such as scroll inversion, three-finger middle click, paste tools, Dock previews, and parts of the window switcher
+- Accessibility permission for global input and window-management features
 - Screen Recording permission for live window and Dock previews
-- Input Monitoring permission for keyboard-driven features such as file cut/paste and hardware-key HUD handling
+- Input Monitoring permission for keyboard-driven features and hardware-key HUD handling
+- Camera permission only when using the mirror feature
+- Local Network permission only when using LocalSend integration
+
+NotchMore requests permissions only when they are required by an enabled feature. Permissions and features can be reviewed later from Settings.
 
 ## Installation
 
-Download the latest signed release from the [Releases](https://github.com/Codseus/NotchMore/releases) page, open the downloaded package, and move NotchMore to your Applications folder.
+1. Download the latest signed and notarized version from [GitHub Releases](https://github.com/Codseus/NotchMore/releases/latest).
+2. Move NotchMore to the Applications folder.
+3. Open the app and complete the first-run feature and permission setup.
 
-On first launch, NotchMore shows onboarding so you can choose the features you want and grant the permissions they need. You can change enabled features later from Settings.
+NotchMore checks for updates automatically using Sparkle.
 
-## Updates
-
-NotchMore uses Sparkle for automatic updates.
-
-### From Source
+## Build From Source
 
 1. Clone the repository.
 2. Open `NotchMore.xcodeproj` in Xcode.
 3. Build and run the `NotchMore` scheme.
 
-Or build from Terminal:
+You can also build from Terminal:
 
 ```bash
 xcodebuild -scheme NotchMore -configuration Debug -derivedDataPath .build build
 ```
 
-The built app will be available under:
+Debug and release builds use different app names and bundle identifiers so they can have separate macOS permissions:
 
-```bash
+```text
 .build/Build/Products/Debug/NotchMoreDebug.app
-```
-
-Release builds use the normal app name:
-
-```bash
 .build/Build/Products/Release/NotchMore.app
 ```
 
-## Dependency
+## Dependencies
 
-NotchMore currently uses these Swift Package dependencies:
-
-- `MediaRemoteAdapter`
-  - Source: `https://github.com/ejbills/mediaremote-adapter`
-  - Used for media playback metadata and controls
-- `DynamicNotchKit`
-  - Source: `https://github.com/MrKai77/DynamicNotchKit`
-  - Used for notch panel display
-- `Sparkle`
-  - Source: `https://github.com/sparkle-project/Sparkle`
-  - Used for automatic updates
+- [MediaRemoteAdapter](https://github.com/ejbills/mediaremote-adapter) for media metadata and playback controls
+- [DynamicNotchKit](https://github.com/MrKai77/DynamicNotchKit) for notch panel presentation
+- [Sparkle](https://github.com/sparkle-project/Sparkle) for automatic updates
 
 ## Contributing
 
 Issues and pull requests are welcome.
 
-If you contribute a new feature, try to keep it aligned with the current project structure:
-
-- keep feature-specific logic inside `Features/<FeatureName>`
-- keep settings wiring in `Settings/SettingsView.swift`
-- include the new feature in the onboarding flow in `Onboarding/OnboardingView.swift`
+- Use the `Bug` label when reporting a problem.
+- Use the `Feature Request` label when proposing functionality within the project's scope.
+- Keep feature-specific code under `Features/<FeatureName>`.
+- Add settings integration in `Settings/SettingsView.swift` when needed.
+- Include user-facing features in the onboarding flow when they require initial setup or permissions.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0 only.
-
-See the [LICENSE](LICENSE) file for the full text.
+NotchMore is licensed under the [GNU General Public License v3.0](LICENSE).

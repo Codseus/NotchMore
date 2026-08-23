@@ -470,10 +470,12 @@ final class NotchPanelController {
     }
 
     private func rebuildDynamicNotch() {
+        let display = NSScreen.screens.first
         let combinedView = CombinedNotchView(
             mediaManager: mediaManager,
             clipboardManager: clipboardManager,
             fileShelfManager: fileShelfManager,
+            usesFloatingStyle: !Self.hasPhysicalNotch(display),
             onOpenSettings: { [weak self] in
                 self?.onOpenSettings()
             },
@@ -496,6 +498,11 @@ final class NotchPanelController {
         dynamicNotch = DynamicNotch(hoverBehavior: []) {
             combinedView
         }
+    }
+
+    private nonisolated static func hasPhysicalNotch(_ screen: NSScreen?) -> Bool {
+        guard let screen else { return false }
+        return screen.auxiliaryTopLeftArea != nil && screen.auxiliaryTopRightArea != nil
     }
 
     private func triggerFrameWithPadding(on screen: NSScreen) -> NSRect {

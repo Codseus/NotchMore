@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NotchMore - Open-source macOS utility for your notch and everyday workflows</title>
+  <meta name="description" content="NotchMore is a free, open-source macOS utility with clipboard history, a file shelf, media controls, Dock previews, window switching, system HUDs, and more.">
+  <meta name="theme-color" content="#f6f7f8">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="https://codseus.github.io/NotchMore/">
+  <link rel="icon" type="image/png" href="assets/notchmore-icon.png">
+  <link rel="apple-touch-icon" href="assets/notchmore-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="NotchMore">
+  <meta property="og:title" content="NotchMore - More useful Mac, fewer tiny apps">
+  <meta property="og:description" content="A free, open-source macOS utility that brings clipboard history, file tools, media controls, Dock previews, window switching, and more into one native app.">
+  <meta property="og:url" content="https://codseus.github.io/NotchMore/">
+  <meta property="og:image" content="https://codseus.github.io/NotchMore/assets/notchpanel.png">
+  <meta property="og:image:width" content="1710">
+  <meta property="og:image:height" content="644">
+  <meta property="og:image:alt" content="NotchMore showing its file shelf, media controls, and clipboard history around the MacBook notch">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://codseus.github.io/NotchMore/#website",
+        "url": "https://codseus.github.io/NotchMore/",
+        "name": "NotchMore"
+      },
+      {
+        "@type": "SoftwareApplication",
+        "@id": "https://codseus.github.io/NotchMore/#app",
+        "name": "NotchMore",
+        "description": "A native macOS utility that combines notch controls, clipboard history, file tools, window switching, Dock previews, and other everyday Mac helpers.",
+        "url": "https://codseus.github.io/NotchMore/",
+        "downloadUrl": "https://github.com/Codseus/NotchMore/releases/latest",
+        "softwareVersion": "1.2.0",
+        "operatingSystem": "macOS 15.4 or later",
+        "applicationCategory": "UtilitiesApplication",
+        "isAccessibleForFree": true,
+        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+        "image": "https://codseus.github.io/NotchMore/assets/notchmore-icon.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "author": {
+          "@type": "Person",
+          "name": "Codseus",
+          "url": "https://github.com/Codseus"
+        }
+      }
+    ]
+  }
+  </script>
+  <link rel="stylesheet" href="styles.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="nav-shell">
+      <a class="brand" href="#top" aria-label="NotchMore home">
+        <img src="assets/notchmore-icon.png" alt="" width="36" height="36">
+        <span>NotchMore</span>
+      </a>
+
+      <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation">
+        <span></span><span></span><span></span>
+      </button>
+
+      <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#why">Why NotchMore</a>
+        <a href="#requirements">Requirements</a>
+        <a href="https://github.com/Codseus/NotchMore">GitHub</a>
+        <a class="nav-download" href="https://github.com/Codseus/NotchMore/releases/latest">Download</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section id="top" class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <img class="hero-icon" src="assets/notchmore-icon.png" alt="NotchMore app icon" width="104" height="104">
+        <p class="eyebrow">Native macOS utility · Free and open source</p>
+        <h1 id="hero-title">NotchMore</h1>
+        <p class="hero-lede">More useful Mac. Fewer tiny apps.</p>
+        <p class="hero-detail">Turn the space around your notch into a file shelf, clipboard, and media controller, then add the small background tools macOS is missing.</p>
+
+        <div class="hero-actions">
+          <a class="button button-primary" href="https://github.com/Codseus/NotchMore/releases/latest">
+            <span aria-hidden="true">↓</span> Download for macOS
+          </a>
+          <a class="button button-secondary" href="https://github.com/Codseus/NotchMore">
+            View source on GitHub <span aria-hidden="true">↗</span>
+          </a>
+        </div>
+        <p class="hero-meta">macOS 15.4+ · Signed and notarized · Automatic updates</p>
+      </div>
+
+      <div class="hero-visual" aria-label="NotchMore app preview">
+        <img src="assets/notchpanel.png" alt="The NotchMore panel with a file shelf, media controls, and clipboard history" width="1710" height="644">
+      </div>
+    </section>
+
+    <section class="proof-strip" aria-label="NotchMore highlights">
+      <div class="proof-grid">
+        <p><strong>One app</strong><span>for everyday Mac utilities</span></p>
+        <p><strong>Native Swift</strong><span>built for macOS</span></p>
+        <p><strong>Open source</strong><span>inspect it, improve it, own it</span></p>
+        <p><strong>Your choice</strong><span>enable only the tools you want</span></p>
+      </div>
+    </section>
+
+    <section id="features" class="section feature-section" aria-labelledby="features-title">
+      <div class="section-intro">
+        <p class="eyebrow">One utility, many annoyances solved</p>
+        <h2 id="features-title">The tools you reach for every day.</h2>
+        <p>NotchMore is useful on Macs with or without a physical notch. Every feature is optional, so the app stays as focused as you want it to be.</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card feature-wide">
+          <span class="feature-mark blue" aria-hidden="true">⌘</span>
+          <div>
+            <h3>Clipboard history</h3>
+            <p>Find copied text, images, and files. Pin important items, paste without formatting, preview content, and extract text from images with OCR.</p>
+          </div>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-mark orange" aria-hidden="true">↗</span>
+          <div>
+            <h3>File shelf</h3>
+            <p>Keep files close while you work. Drag them back out, select multiple items, copy paths, share, or send through AirDrop and LocalSend.</p>
+          </div>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-mark green" aria-hidden="true">▶</span>
+          <div>
+            <h3>Media controls</h3>
+            <p>See artwork and playback details, scrub through media, adjust volume, and control playback without leaving your current window.</p>
+          </div>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-mark blue" aria-hidden="true">▣</span>
+          <div>
+            <h3>Window switcher</h3>
+            <p>Move between windows with live previews, plus get Windows-style previews when hovering over open apps in the Dock.</p>
+          </div>
+        </article>
+
+        <article class="feature-card">
+          <span class="feature-mark orange" aria-hidden="true">◐</span>
+          <div>
+            <h3>Notch HUDs</h3>
+            <p>Bring volume, brightness, battery state, and rest reminders into a compact HUD that expands naturally from the notch.</p>
+          </div>
+        </article>
+
+        <article class="feature-card feature-wide">
+          <span class="feature-mark green" aria-hidden="true">＋</span>
+          <div>
+            <h3>And the details macOS leaves unfinished</h3>
+            <p>Cut and paste Finder files, separate mouse and trackpad scrolling, remove Caps Lock delay, add three-finger middle click, hide desktop icons, and use your camera as a quick mirror.</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="showcase" aria-labelledby="showcase-title">
+      <div class="showcase-copy">
+        <p class="eyebrow">Made for your Mac</p>
+        <h2 id="showcase-title">A notch when you have one. A compact panel when you do not.</h2>
+        <p>The same tools adapt to your display instead of locking useful features behind a particular MacBook model.</p>
+
+        <div class="segmented-control" role="group" aria-label="Choose a NotchMore preview">
+          <button class="preview-tab active" type="button" data-image="assets/notchpanel.png" data-width="1710" data-height="644" data-alt="NotchMore running around a MacBook notch" aria-pressed="true">Notch</button>
+          <button class="preview-tab" type="button" data-image="assets/notchpanel_floating.png" data-width="978" data-height="358" data-alt="NotchMore running as a floating panel on a Mac without a notch" aria-pressed="false">No notch</button>
+          <button class="preview-tab" type="button" data-image="assets/windowswitcher.gif" data-width="1024" data-height="666" data-alt="NotchMore window switcher showing live app previews" aria-pressed="false">Window switcher</button>
+        </div>
+      </div>
+
+      <div class="showcase-visual">
+        <img id="showcase-image" src="assets/notchpanel.png" alt="NotchMore running around a MacBook notch" width="1710" height="644" loading="lazy" decoding="async">
+      </div>
+    </section>
+
+    <section class="section workflow-section" aria-labelledby="workflow-title">
+      <div class="section-intro">
+        <p class="eyebrow">Small actions, shorter workflows</p>
+        <h2 id="workflow-title">Useful where the work happens.</h2>
+        <p>Keep files moving, inspect open windows, and bring familiar file controls to Finder without interrupting what you are doing.</p>
+      </div>
+
+      <div class="workflow-grid">
+        <figure class="workflow-card workflow-wide">
+          <div class="workflow-media workflow-media-wide">
+            <img src="assets/dropzones.gif" alt="Dragging a file to NotchMore and choosing between its file shelf and sharing drop zones" width="1324" height="480" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>Drop files where they need to go</strong>
+            <span>Send files to the shelf, AirDrop, or LocalSend from one clear target.</span>
+          </figcaption>
+        </figure>
+
+        <figure class="workflow-card">
+          <div class="workflow-media">
+            <img src="assets/commandx.gif" alt="Cutting and pasting a file between Finder windows with keyboard shortcuts" width="1024" height="666" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>Cut and paste in Finder</strong>
+            <span>Move files with Command+X and Command+V, just as expected.</span>
+          </figcaption>
+        </figure>
+
+        <figure class="workflow-card">
+          <div class="workflow-media workflow-media-portrait">
+            <img src="assets/window_previews.gif" alt="Hovering over a Dock application to reveal its open window previews" width="480" height="504" loading="lazy" decoding="async">
+          </div>
+          <figcaption>
+            <strong>Preview windows from the Dock</strong>
+            <span>See and control an app's open windows before switching to it.</span>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="hud-section" aria-labelledby="hud-title">
+      <div class="hud-inner">
+        <div class="section-intro">
+          <p class="eyebrow">System feedback, in the right place</p>
+          <h2 id="hud-title">HUDs that belong to the notch.</h2>
+          <p>Volume, brightness, battery state, and rest reminders appear in a focused surface without making the main panel jump between states.</p>
+        </div>
+
+        <div class="hud-grid">
+          <figure>
+            <img src="assets/volume.png" alt="NotchMore volume HUD showing the current volume level" width="862" height="338" loading="lazy" decoding="async">
+            <figcaption>Volume</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/brightness.png" alt="NotchMore brightness HUD showing the current display brightness" width="862" height="338" loading="lazy" decoding="async">
+            <figcaption>Brightness</figcaption>
+          </figure>
+          <figure>
+            <img src="assets/rest_eyes_reminder.png" alt="NotchMore rest reminder with options to add one minute or skip the break" width="902" height="390" loading="lazy" decoding="async">
+            <figcaption>Rest reminders</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="why" class="section principles" aria-labelledby="why-title">
+      <div class="section-intro">
+        <p class="eyebrow">Built to be yours</p>
+        <h2 id="why-title">A utility should help quietly.</h2>
+      </div>
+
+      <div class="principle-grid">
+        <article>
+          <span>01</span>
+          <h3>Choose what runs</h3>
+          <p>First-run onboarding lets you enable only the features you want and walks you through required permissions.</p>
+        </article>
+        <article>
+          <span>02</span>
+          <h3>Keep data on your Mac</h3>
+          <p>NotchMore is a local macOS utility. Its source is public, so you can see how the tools you depend on work.</p>
+        </article>
+        <article>
+          <span>03</span>
+          <h3>Pay nothing</h3>
+          <p>No subscription, account, or feature tier. Download the signed app or build it yourself from the repository.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="requirements" class="requirements" aria-labelledby="requirements-title">
+      <div>
+        <p class="eyebrow">Before you install</p>
+        <h2 id="requirements-title">Designed for modern macOS.</h2>
+        <p>NotchMore requires macOS 15.4 or later. Features that monitor global input or show live window previews need the matching macOS privacy permissions.</p>
+      </div>
+      <ul>
+        <li><span>✓</span> Signed and notarized by Apple</li>
+        <li><span>✓</span> Guided permission setup</li>
+        <li><span>✓</span> Automatic updates through Sparkle</li>
+        <li><span>✓</span> GPL-3.0 open-source license</li>
+      </ul>
+    </section>
+
+    <section class="closing" aria-labelledby="closing-title">
+      <img src="assets/notchmore-icon.png" alt="" width="84" height="84">
+      <h2 id="closing-title">Give your Mac a little more.</h2>
+      <p>Start with the features you need. Leave the rest switched off.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="https://github.com/Codseus/NotchMore/releases/latest"><span aria-hidden="true">↓</span> Download NotchMore</a>
+        <a class="button button-secondary" href="https://github.com/Codseus/NotchMore/issues">Report an issue</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div>
+      <a class="brand footer-brand" href="#top">
+        <img src="assets/notchmore-icon.png" alt="" width="30" height="30">
+        <span>NotchMore</span>
+      </a>
+      <p>Made for macOS by <a href="https://github.com/Codseus">Codseus</a>.</p>
+    </div>
+    <nav aria-label="Footer navigation">
+      <a href="https://github.com/Codseus/NotchMore">Source</a>
+      <a href="https://github.com/Codseus/NotchMore/releases">Releases</a>
+      <a href="https://github.com/Codseus/NotchMore/issues">Issues</a>
+      <a href="https://github.com/Codseus/NotchMore/blob/main/LICENSE">License</a>
+    </nav>
+  </footer>
+</body>
+</html>

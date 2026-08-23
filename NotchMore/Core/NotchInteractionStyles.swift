@@ -36,8 +36,8 @@ private struct NotchIconButtonBody: View {
             .frame(width: size, height: size)
             .background(backgroundShape)
             .overlay(borderShape)
-            .scaleEffect(configuration.isPressed ? 0.90 : isHovered ? 1.06 : 1.0)
-            .brightness(configuration.isPressed ? -0.06 : isHovered ? 0.04 : 0)
+            .scaleEffect(configuration.isPressed ? 0.94 : isHovered ? 1.02 : 1.0)
+            .brightness(configuration.isPressed ? -0.04 : 0)
             .shadow(
                 color: Color.black.opacity(isHovered && !configuration.isPressed ? 0.18 : 0),
                 radius: 5,
@@ -45,11 +45,10 @@ private struct NotchIconButtonBody: View {
                 y: 2
             )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .animation(.spring(response: 0.18, dampingFraction: 0.72), value: isHovered)
-            .animation(.spring(response: 0.13, dampingFraction: 0.62), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.14), value: isHovered)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
             .onHover { hovering in
                 isHovered = hovering
-                (hovering ? NSCursor.pointingHand : NSCursor.arrow).set()
             }
     }
 
@@ -60,7 +59,7 @@ private struct NotchIconButtonBody: View {
         if isActive {
             return tint
         }
-        return tint.opacity(isHovered ? 0.95 : 0.72)
+        return tint.opacity(isHovered ? 0.95 : 0.70)
     }
 
     private var backgroundShape: some View {
@@ -83,10 +82,10 @@ private struct NotchIconButtonBody: View {
             return AnyShapeStyle(tint.opacity(configuration.isPressed ? 0.22 : isHovered ? 0.18 : 0.13))
         }
         if configuration.isPressed {
-            return AnyShapeStyle(Color.white.opacity(0.22))
+            return AnyShapeStyle(Color.white.opacity(0.20))
         }
         if isHovered {
-            return AnyShapeStyle(Color.white.opacity(0.15))
+            return AnyShapeStyle(Color.white.opacity(0.13))
         }
         return AnyShapeStyle(.ultraThinMaterial)
     }
@@ -135,14 +134,13 @@ private struct NotchPillButtonBody: View {
                         lineWidth: 0.8
                     )
             )
-            .scaleEffect(configuration.isPressed ? 0.94 : isHovered ? 1.03 : 1.0)
-            .brightness(configuration.isPressed ? -0.06 : isHovered ? 0.04 : 0)
+            .scaleEffect(configuration.isPressed ? 0.96 : isHovered ? 1.01 : 1.0)
+            .brightness(configuration.isPressed ? -0.04 : 0)
             .contentShape(Capsule(style: .continuous))
-            .animation(.spring(response: 0.18, dampingFraction: 0.75), value: isHovered)
-            .animation(.spring(response: 0.13, dampingFraction: 0.65), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.14), value: isHovered)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
             .onHover { hovering in
                 isHovered = hovering
-                (hovering ? NSCursor.pointingHand : NSCursor.arrow).set()
             }
     }
 
@@ -173,12 +171,49 @@ private struct NotchPillButtonBody: View {
     }
 }
 
-extension View {
-    func resetArrowCursorOnHover() -> some View {
-        onHover { hovering in
-            if hovering {
-                NSCursor.arrow.set()
+struct NotchSearchField: View {
+    let placeholder: String
+    @Binding var text: String
+
+    @FocusState private var isFocused: Bool
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(isFocused ? Color.primary : Color.secondary)
+
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(.primary)
+                .focused($isFocused)
+
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(NotchIconButtonStyle(size: 18, cornerRadius: 9, tint: .secondary))
+                .help("Clear Search")
             }
         }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(isFocused ? 0.12 : isHovered ? 0.09 : 0.065))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(
+                    isFocused ? Color.accentColor.opacity(0.82) : Color.white.opacity(isHovered ? 0.22 : 0.14),
+                    lineWidth: isFocused ? 1 : 0.7
+                )
+        )
+        .animation(.easeOut(duration: 0.14), value: isFocused)
+        .animation(.easeOut(duration: 0.14), value: isHovered)
+        .onHover { isHovered = $0 }
     }
 }

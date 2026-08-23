@@ -4,7 +4,7 @@ import Foundation
 enum NotchConstants {
     // Base panel dimensions used before dynamic screen scaling.
     static let basePanelWidth: CGFloat = 305
-    static let basePanelHeight: CGFloat = 305
+    static let basePanelHeight: CGFloat = 280
 
     // Default notch hover trigger zone size
     static let defaultTriggerWidth: CGFloat = 200
@@ -71,7 +71,22 @@ enum NotchLayout {
 
         let scale = min(1, availablePanelWidth / max(panelWidth, 1))
         let scaledPanelWidth = floor(panelWidth * scale)
-        let scaledPanelHeight = floor(panelHeight * scale)
+
+        // Keep the expanded height stable as sections are enabled or disabled.
+        // Three sections are the most constrained layout, so use that scale as
+        // the common height reference while allowing each section's width to adapt.
+        let heightReferenceSectionCount: CGFloat = 3
+        let heightReferenceSpacing = (heightReferenceSectionCount - 1) * sectionSpacing
+        let heightReferenceInset = NotchLayout.contentHorizontalInset(
+            for: Int(heightReferenceSectionCount)
+        )
+        let heightReferencePanelWidth = max(
+            80,
+            (maxContentWidth - heightReferenceSpacing - (heightReferenceInset * 2))
+                / heightReferenceSectionCount
+        )
+        let heightScale = min(1, heightReferencePanelWidth / max(panelWidth, 1))
+        let scaledPanelHeight = floor(panelHeight * heightScale)
         let scaledTotalWidth =
             (scaledPanelWidth * CGFloat(safeSectionCount)) + spacingTotal
             + (contentHorizontalInset * 2)
