@@ -36,6 +36,11 @@ enum NotchLayout {
     static let expandedSafeAreaInset: CGFloat = 15
     static let maxExpandedWidthRatio: CGFloat = 0.5
 
+    static func containsPointer(_ location: NSPoint, in frame: NSRect) -> Bool {
+        // In AppKit's unflipped screen coordinates the top edge, maxY, is inside.
+        NSMouseInRect(location, frame, false)
+    }
+
     static func contentHorizontalInset(for sectionCount: Int) -> CGFloat {
         sectionCount >= 3 ? 10 : 0
     }

@@ -161,16 +161,6 @@ final class NotchPanelController {
         }
     }
 
-    private func triggerHoverChanged(_ isHovering: Bool) {
-        isHoveringTrigger = isHovering
-        evaluateHoverState()
-    }
-
-    private func panelHoverChanged(_ isHovering: Bool) {
-        isHoveringPanel = isHovering
-        evaluateHoverState()
-    }
-
     private func triggerDraggingChanged(_ isDragging: Bool) {
         isDraggingOverTrigger = isDragging
         if isDragging {
@@ -348,20 +338,20 @@ final class NotchPanelController {
         dynamicNotch?.windowController?.window?.ignoresMouseEvents = false
     }
 
-    private func isPointerOverTrigger() -> Bool {
-        let mouseLocation = NSEvent.mouseLocation
-        return triggerWindows.contains { window in
-            window.isVisible && window.frame.contains(mouseLocation)
+    private func isPointerOverTrigger(at location: NSPoint = NSEvent.mouseLocation) -> Bool {
+        triggerWindows.contains { window in
+            window.isVisible && NotchLayout.containsPointer(location, in: window.frame)
         }
     }
 
-    private func isPointerOverPanel() -> Bool {
-        guard let panelWindow = dynamicNotch?.windowController?.window,
+    private func isPointerOverPanel(at location: NSPoint = NSEvent.mouseLocation) -> Bool {
+        guard isDynamicNotchVisible,
+              let panelWindow = dynamicNotch?.windowController?.window,
               panelWindow.isVisible,
               let screen = panelWindow.screen
         else { return false }
 
-        return visiblePanelInteractionFrame(on: screen).contains(NSEvent.mouseLocation)
+        return NotchLayout.containsPointer(location, in: visiblePanelInteractionFrame(on: screen))
     }
 
     private func startHoverValidationTimer() {
@@ -382,18 +372,13 @@ final class NotchPanelController {
     }
 
     private func refreshPointerHoverState() {
-        guard isDynamicNotchVisible else { return }
-
         configureNotchWindowLevel()
 
+        // Hover tracking can report an exit when the panel covers the trigger.
+        // Use the same screen-space hit tests for notifications and the timer.
         let mouseLocation = NSEvent.mouseLocation
-        let isActuallyHoveringTrigger =
-            !isDraggingOverTrigger
-            && isPointerOverTrigger()
-        let panelWindow = dynamicNotch?.windowController?.window
-        let visiblePanelFrame = panelWindow?.screen.map(visiblePanelInteractionFrame(on:))
-        let isActuallyHoveringPanel = panelWindow?.isVisible == true
-            && visiblePanelFrame?.contains(mouseLocation) == true
+        let isActuallyHoveringTrigger = !isDraggingOverTrigger && isPointerOverTrigger(at: mouseLocation)
+        let isActuallyHoveringPanel = isPointerOverPanel(at: mouseLocation)
 
         guard isActuallyHoveringTrigger != isHoveringTrigger
             || isActuallyHoveringPanel != isHoveringPanel
@@ -453,8 +438,8 @@ final class NotchPanelController {
             window.collectionBehavior = [.canJoinAllSpaces, .transient]
             window.contentView = NSHostingView(
                 rootView: TriggerAreaView(
-                    onHoverChange: { [weak self] isHovering in
-                        self?.triggerHoverChanged(isHovering)
+                    onHoverChange: { [weak self] _ in
+                        self?.refreshPointerHoverState()
                     },
                     onDragging: { [weak self] isDragging in
                         self?.triggerDraggingChanged(isDragging)
@@ -482,8 +467,8 @@ final class NotchPanelController {
             onMirrorActiveChange: { [weak self] active in
                 self?.mirrorActiveChanged(active)
             },
-            onHover: { [weak self] isHovering in
-                self?.panelHoverChanged(isHovering)
+            onHover: { [weak self] _ in
+                self?.refreshPointerHoverState()
             },
             onDropTargetChange: { [weak self] isTargeted in
                 self?.panelDraggingChanged(isTargeted)
