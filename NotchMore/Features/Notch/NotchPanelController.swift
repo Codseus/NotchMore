@@ -8,6 +8,7 @@ final class NotchPanelController {
     private let mediaManager: MediaManager
     private let clipboardManager: ClipboardManager
     private let fileShelfManager: FileShelfManager
+    private let todoListStore = TodoListStore()
     private let onOpenSettings: () -> Void
     private let isFileShelfEnabled: () -> Bool
     private let isClipboardEnabled: () -> Bool
@@ -405,9 +406,13 @@ final class NotchPanelController {
     }
 
     private func visiblePanelInteractionFrame(on screen: NSScreen) -> NSRect {
-        let sectionCount = NotchLayout.panelSectionCount(
-            enableFileShelf: isMirrorActive ? false : isFileShelfEnabled(),
-            showClipboard: isMirrorActive ? false : isClipboardEnabled()
+        let defaults = UserDefaults.standard
+        let showNowPlaying = defaults.object(forKey: "showNowPlaying") as? Bool ?? true
+        let sectionCount = isMirrorActive ? 1 : NotchLayout.panelSectionCount(
+            showNowPlaying: showNowPlaying,
+            enableFileShelf: isFileShelfEnabled(),
+            showClipboard: isClipboardEnabled(),
+            showTodoList: defaults.bool(forKey: "showTodoList")
         )
         let metrics = NotchLayout.scaledMetrics(
             panelWidth: NotchConstants.basePanelWidth,
@@ -475,6 +480,7 @@ final class NotchPanelController {
             mediaManager: mediaManager,
             clipboardManager: clipboardManager,
             fileShelfManager: fileShelfManager,
+            todoListStore: todoListStore,
             usesFloatingStyle: !Self.hasPhysicalNotch(display),
             onOpenSettings: { [weak self] in
                 self?.onOpenSettings()
