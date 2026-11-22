@@ -40,11 +40,12 @@ enum NotchLayout {
         sectionCount >= 3 ? 10 : 0
     }
 
-    static func panelSectionCount(enableFileShelf: Bool, showClipboard: Bool) -> Int {
-        var count = 1  // Media panel
-        if enableFileShelf { count += 1 }
-        if showClipboard { count += 1 }
-        return count
+    static let utilityBarHeight: CGFloat = 34
+
+    static func panelSectionCount(
+        showNowPlaying: Bool, enableFileShelf: Bool, showClipboard: Bool, showTodoList: Bool
+    ) -> Int {
+        [showNowPlaying, enableFileShelf, showClipboard, showTodoList].filter { $0 }.count
     }
 
     static func scaledMetrics(
@@ -95,7 +96,7 @@ enum NotchLayout {
             panelWidth: scaledPanelWidth,
             panelHeight: scaledPanelHeight,
             totalWidth: scaledTotalWidth,
-            totalHeight: scaledPanelHeight,
+            totalHeight: sectionCount == 0 ? 0 : scaledPanelHeight,
             scale: scale,
             contentHorizontalInset: contentHorizontalInset
         )

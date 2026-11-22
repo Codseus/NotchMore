@@ -9,6 +9,8 @@ struct CombinedNotchView: View {
     @ObservedObject var clipboardManager: ClipboardManager
     @ObservedObject var fileShelfManager: FileShelfManager
 
+    @AppStorage("showNowPlaying") private var showNowPlaying = true
+    @AppStorage("showTodoList") private var showTodoList = false
     @AppStorage("enableFileShelf") private var enableFileShelf: Bool = false
     @AppStorage("enableClipboardHistory") private var enableClipboardHistory: Bool = false
     @AppStorage("enableAirDropSupport") private var enableAirDropSupport: Bool = false
@@ -57,7 +59,11 @@ struct CombinedNotchView: View {
             return 1
         }
         return NotchLayout.panelSectionCount(
-            enableFileShelf: enableFileShelf, showClipboard: enableClipboardHistory)
+            showNowPlaying: showNowPlaying,
+            enableFileShelf: enableFileShelf,
+            showClipboard: enableClipboardHistory,
+            showTodoList: showTodoList
+        )
     }
 
     private var scaledLayout:
@@ -81,8 +87,12 @@ struct CombinedNotchView: View {
         scaledLayout.totalWidth - floatingHorizontalInsetAdjustment
     }
 
+    private var showsSeparateUtilityBar: Bool {
+        !showNowPlaying && !isMirrorActive
+    }
+
     private var totalHeight: CGFloat {
-        scaledLayout.totalHeight
+        scaledLayout.totalHeight + (showsSeparateUtilityBar ? NotchLayout.utilityBarHeight : 0)
     }
 
     private var panelWidth: CGFloat {
@@ -236,46 +246,14 @@ struct CombinedNotchView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: NotchLayout.sectionSpacing) {
-            if isMirrorActive {
-                sectionContainer {
-                    MirrorNotchView(
-                        panelWidth: panelWidth,
-                        panelHeight: panelHeight,
-                        onClose: { isMirrorActive = false }
-                    )
-                }
-            } else {
-                if enableFileShelf {
-                    sectionContainer {
-                        FileShelfView(
-                            fileShelfManager: fileShelfManager,
-                            panelWidth: panelWidth,
-                            panelHeight: panelHeight,
-                            onExternalInteraction: onExternalInteraction
-                        )
-                    }
-                }
-
-                sectionContainer {
-                    ExpandedNotchView(
-                        mediaManager: mediaManager,
-                        panelWidth: panelWidth,
-                        panelHeight: panelHeight,
-                        onOpenSettings: onOpenSettings,
-                        onOpenMirror: openMirror
-                    )
-                }
-
-                if enableClipboardHistory {
-                    sectionContainer {
-                        ClipboardHistoryView(
-                            clipboardManager: clipboardManager,
-                            panelWidth: panelWidth,
-                            panelHeight: panelHeight
-                        )
-                    }
-                }
+        VStack(spacing: 0) {
+            if showsSeparateUtilityBar {
+                NotchUtilityBar(onOpenSettings: onOpenSettings, onOpenMirror: openMirror)
+                    .padding(.horizontal, 14)
+                    .frame(height: NotchLayout.utilityBarHeight)
+            }
+            if sectionCount > 0 {
+                panels
             }
         }
         .padding(.horizontal, contentHorizontalInset)
@@ -327,6 +305,59 @@ struct CombinedNotchView: View {
         .onHover { onHover?($0) }
         .onChange(of: isMirrorActive, initial: true) { _, active in
             onMirrorActiveChange?(active)
+        }
+    }
+
+    private var panels: some View {
+        HStack(alignment: .top, spacing: NotchLayout.sectionSpacing) {
+            if isMirrorActive {
+                sectionContainer {
+                    MirrorNotchView(
+                        panelWidth: panelWidth,
+                        panelHeight: panelHeight,
+                        onClose: { isMirrorActive = false }
+                    )
+                }
+            } else {
+                if enableFileShelf {
+                    sectionContainer {
+                        FileShelfView(
+                            fileShelfManager: fileShelfManager,
+                            panelWidth: panelWidth,
+                            panelHeight: panelHeight,
+                            onExternalInteraction: onExternalInteraction
+                        )
+                    }
+                }
+
+                if showNowPlaying {
+                    sectionContainer {
+                        ExpandedNotchView(
+                            mediaManager: mediaManager,
+                            panelWidth: panelWidth,
+                            panelHeight: panelHeight,
+                            onOpenSettings: onOpenSettings,
+                            onOpenMirror: openMirror
+                        )
+                    }
+                }
+
+                if enableClipboardHistory {
+                    sectionContainer {
+                        ClipboardHistoryView(
+                            clipboardManager: clipboardManager,
+                            panelWidth: panelWidth,
+                            panelHeight: panelHeight
+                        )
+                    }
+                }
+
+                if showTodoList {
+                    sectionContainer {
+                        TodoListView(panelWidth: panelWidth, panelHeight: panelHeight)
+                    }
+                }
+            }
         }
     }
 
@@ -470,11 +501,56 @@ private struct NotchPanelDropDelegate: DropDelegate {
     }
 }
 
+private struct NotchUtilityBar: View {
+    @ObservedObject private var desktopCleaner = DesktopCleanerManager.shared
+    let onOpenSettings: () -> Void
+    let onOpenMirror: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                onOpenSettings()
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 11.5, weight: .semibold))
+            }
+            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
+            .help("Open Settings")
+
+            Spacer(minLength: 0)
+
+            Button {
+                desktopCleaner.toggle()
+            } label: {
+                Image(systemName: desktopCleaner.isDesktopClean ? "desktopcomputer.trianglebadge.exclamationmark" : "desktopcomputer")
+                    .font(.system(size: 11.5, weight: .semibold))
+            }
+            .buttonStyle(
+                NotchIconButtonStyle(
+                    size: 24,
+                    cornerRadius: 7,
+                    tint: .primary,
+                    isActive: desktopCleaner.isDesktopClean
+                )
+            )
+            .help(desktopCleaner.isDesktopClean ? "Show Desktop Icons" : "Clean Desktop")
+
+            Button {
+                onOpenMirror()
+            } label: {
+                Image(systemName: "camera")
+                    .font(.system(size: 11.5, weight: .semibold))
+            }
+            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
+            .help("Open Mirror")
+        }
+    }
+}
+
 // MARK: - Media Panel
 
 struct ExpandedNotchView: View {
     @ObservedObject var mediaManager: MediaManager
-    @ObservedObject private var desktopCleaner = DesktopCleanerManager.shared
     let panelWidth: CGFloat
     let panelHeight: CGFloat
     let onOpenSettings: () -> Void
@@ -537,7 +613,7 @@ struct ExpandedNotchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            headerBar
+            NotchUtilityBar(onOpenSettings: onOpenSettings, onOpenMirror: onOpenMirror)
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, verticalPadding)
                 .padding(.bottom, 8)
@@ -554,46 +630,6 @@ struct ExpandedNotchView: View {
         .frame(width: panelWidth, height: panelHeight, alignment: .top)
         .animation(.easeInOut(duration: 0.2), value: panelWidth)
         .animation(.easeInOut(duration: 0.2), value: panelHeight)
-    }
-
-    private var headerBar: some View {
-        HStack(spacing: 10) {
-            Button {
-                onOpenSettings()
-            } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 11.5, weight: .semibold))
-            }
-            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
-            .help("Open Settings")
-
-            Spacer(minLength: 0)
-
-            Button {
-                desktopCleaner.toggle()
-            } label: {
-                Image(systemName: desktopCleaner.isDesktopClean ? "desktopcomputer.trianglebadge.exclamationmark" : "desktopcomputer")
-                    .font(.system(size: 11.5, weight: .semibold))
-            }
-            .buttonStyle(
-                NotchIconButtonStyle(
-                    size: 24,
-                    cornerRadius: 7,
-                    tint: .primary,
-                    isActive: desktopCleaner.isDesktopClean
-                )
-            )
-            .help(desktopCleaner.isDesktopClean ? "Show Desktop Icons" : "Clean Desktop")
-
-            Button {
-                onOpenMirror()
-            } label: {
-                Image(systemName: "camera")
-                    .font(.system(size: 11.5, weight: .semibold))
-            }
-            .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
-            .help("Open Mirror")
-        }
     }
 
     private var activeMediaView: some View {

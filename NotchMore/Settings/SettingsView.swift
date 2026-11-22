@@ -391,6 +391,8 @@ struct GeneralSettingsView: View {
 }
 
 struct FunctionsSettingsView: View {
+    @AppStorage("showNowPlaying") private var showNowPlaying = true
+    @AppStorage("showTodoList") private var showTodoList = false
     @AppStorage("enableCtrlXCutPaste") private var enableCtrlXCutPaste = false
     @AppStorage("enableClipboardHistory") private var enableClipboardHistory = false
     @AppStorage("autoCopyScreenshotsToClipboard") private var autoCopyScreenshotsToClipboard =
@@ -417,6 +419,18 @@ struct FunctionsSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 SettingsCard(title: "Notch Features") {
+                    SettingsToggleRow(
+                        title: "Now Playing",
+                        subtitle: "Show track information and playback controls in the notch.",
+                        isOn: $showNowPlaying
+                    )
+                    SettingsToggleRow(
+                        title: "To-Do List",
+                        subtitle: "Keep a checklist in the notch.",
+                        isOn: $showTodoList
+                    )
+                    Divider()
+                        .padding(.vertical, 8)
                     VStack(alignment: .leading, spacing: 10) {
                         SettingsToggleRow(
                             title: "Clipboard History",

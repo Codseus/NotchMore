@@ -11,6 +11,7 @@ struct FileShelfView: View {
     @State private var selectedFileIds: Set<UUID> = []
 
     private let gridColumnCount = 3
+    private let minimumTileWidth: CGFloat = 64
     private let gridSpacing: CGFloat = 8
     private let gridHorizontalPadding: CGFloat = 12
 
@@ -33,12 +34,15 @@ struct FileShelfView: View {
             GeometryReader { geo in
                 let availableWidth = max(
                     0,
-                    geo.size.width - (gridHorizontalPadding * 2)
-                        - (gridSpacing * CGFloat(gridColumnCount - 1)))
-                let itemWidth = max(64, floor(availableWidth / CGFloat(gridColumnCount)))
+                    geo.size.width - (gridHorizontalPadding * 2))
+                let columnCount = max(1, min(gridColumnCount, Int(
+                    (availableWidth + gridSpacing) / (minimumTileWidth + gridSpacing)
+                )))
+                let columnSpacing = CGFloat(columnCount - 1) * gridSpacing
+                let itemWidth = max(1, floor((availableWidth - columnSpacing) / CGFloat(columnCount)))
                 let gridColumns = Array(
                     repeating: GridItem(.fixed(itemWidth), spacing: gridSpacing),
-                    count: gridColumnCount)
+                    count: columnCount)
 
                 ScrollView(.vertical, showsIndicators: true) {
                     if fileShelfManager.shelfFiles.isEmpty {

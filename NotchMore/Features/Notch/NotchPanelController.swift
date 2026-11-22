@@ -405,10 +405,15 @@ final class NotchPanelController {
     }
 
     private func visiblePanelInteractionFrame(on screen: NSScreen) -> NSRect {
-        let sectionCount = NotchLayout.panelSectionCount(
-            enableFileShelf: isMirrorActive ? false : isFileShelfEnabled(),
-            showClipboard: isMirrorActive ? false : isClipboardEnabled()
+        let defaults = UserDefaults.standard
+        let showNowPlaying = defaults.object(forKey: "showNowPlaying") as? Bool ?? true
+        let sectionCount = isMirrorActive ? 1 : NotchLayout.panelSectionCount(
+            showNowPlaying: showNowPlaying,
+            enableFileShelf: isFileShelfEnabled(),
+            showClipboard: isClipboardEnabled(),
+            showTodoList: defaults.bool(forKey: "showTodoList")
         )
+        let utilityBarHeight = showNowPlaying || isMirrorActive ? 0 : NotchLayout.utilityBarHeight
         let metrics = NotchLayout.scaledMetrics(
             panelWidth: NotchConstants.basePanelWidth,
             panelHeight: NotchConstants.basePanelHeight,
@@ -422,6 +427,7 @@ final class NotchPanelController {
             + (visiblePanelHitTestPadding * 2)
         let contentHeight = menuBarHeight
             + metrics.totalHeight
+            + utilityBarHeight
             + NotchLayout.expandedSafeAreaInset
             + (visiblePanelHitTestPadding * 2)
         let origin = NSPoint(
