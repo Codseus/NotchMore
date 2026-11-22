@@ -8,6 +8,7 @@ final class NotchPanelController {
     private let mediaManager: MediaManager
     private let clipboardManager: ClipboardManager
     private let fileShelfManager: FileShelfManager
+    private let todoListStore = TodoListStore()
     private let onOpenSettings: () -> Void
     private let isFileShelfEnabled: () -> Bool
     private let isClipboardEnabled: () -> Bool
@@ -413,7 +414,6 @@ final class NotchPanelController {
             showClipboard: isClipboardEnabled(),
             showTodoList: defaults.bool(forKey: "showTodoList")
         )
-        let utilityBarHeight = showNowPlaying || isMirrorActive ? 0 : NotchLayout.utilityBarHeight
         let metrics = NotchLayout.scaledMetrics(
             panelWidth: NotchConstants.basePanelWidth,
             panelHeight: NotchConstants.basePanelHeight,
@@ -427,7 +427,6 @@ final class NotchPanelController {
             + (visiblePanelHitTestPadding * 2)
         let contentHeight = menuBarHeight
             + metrics.totalHeight
-            + utilityBarHeight
             + NotchLayout.expandedSafeAreaInset
             + (visiblePanelHitTestPadding * 2)
         let origin = NSPoint(
@@ -481,6 +480,7 @@ final class NotchPanelController {
             mediaManager: mediaManager,
             clipboardManager: clipboardManager,
             fileShelfManager: fileShelfManager,
+            todoListStore: todoListStore,
             usesFloatingStyle: !Self.hasPhysicalNotch(display),
             onOpenSettings: { [weak self] in
                 self?.onOpenSettings()

@@ -40,7 +40,13 @@ enum NotchLayout {
         sectionCount >= 3 ? 10 : 0
     }
 
-    static let utilityBarHeight: CGFloat = 34
+    static func utilityBarTopPadding(panelHeight: CGFloat) -> CGFloat {
+        min(14, max(10, panelHeight * 0.05))
+    }
+
+    static func utilityBarHeight(panelHeight: CGFloat) -> CGFloat {
+        utilityBarTopPadding(panelHeight: panelHeight) + 24 + 8
+    }
 
     static func panelSectionCount(
         showNowPlaying: Bool, enableFileShelf: Bool, showClipboard: Bool, showTodoList: Bool
@@ -96,7 +102,8 @@ enum NotchLayout {
             panelWidth: scaledPanelWidth,
             panelHeight: scaledPanelHeight,
             totalWidth: scaledTotalWidth,
-            totalHeight: sectionCount == 0 ? 0 : scaledPanelHeight,
+            totalHeight: sectionCount == 0
+                ? utilityBarHeight(panelHeight: scaledPanelHeight) : scaledPanelHeight,
             scale: scale,
             contentHorizontalInset: contentHorizontalInset
         )

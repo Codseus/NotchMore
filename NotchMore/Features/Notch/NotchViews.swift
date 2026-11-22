@@ -8,6 +8,7 @@ struct CombinedNotchView: View {
     @ObservedObject var mediaManager: MediaManager
     @ObservedObject var clipboardManager: ClipboardManager
     @ObservedObject var fileShelfManager: FileShelfManager
+    let todoListStore: TodoListStore
 
     @AppStorage("showNowPlaying") private var showNowPlaying = true
     @AppStorage("showTodoList") private var showTodoList = false
@@ -15,6 +16,8 @@ struct CombinedNotchView: View {
     @AppStorage("enableClipboardHistory") private var enableClipboardHistory: Bool = false
     @AppStorage("enableAirDropSupport") private var enableAirDropSupport: Bool = false
     @AppStorage("enableLocalSendSupport") private var enableLocalSendSupport: Bool = false
+    @FocusState private var isTodoInputFocused: Bool
+    @State private var todoDraft = ""
     @State private var isPanelDropTargetActive: Bool = false
     @State private var activeDropDestination: DropDestination = .fileShelf
     @State private var dropResetToken = UUID()
@@ -33,6 +36,7 @@ struct CombinedNotchView: View {
         mediaManager: MediaManager,
         clipboardManager: ClipboardManager,
         fileShelfManager: FileShelfManager,
+        todoListStore: TodoListStore,
         previewScale: CGFloat = 1.0,
         usesFloatingStyle: Bool = false,
         onOpenSettings: @escaping () -> Void = {},
@@ -45,6 +49,7 @@ struct CombinedNotchView: View {
         self.mediaManager = mediaManager
         self.clipboardManager = clipboardManager
         self.fileShelfManager = fileShelfManager
+        self.todoListStore = todoListStore
         self.usesFloatingStyle = usesFloatingStyle
         self.onOpenSettings = onOpenSettings
         self.onMirrorActiveChange = onMirrorActiveChange
@@ -85,14 +90,6 @@ struct CombinedNotchView: View {
 
     private var totalWidth: CGFloat {
         scaledLayout.totalWidth - floatingHorizontalInsetAdjustment
-    }
-
-    private var showsSeparateUtilityBar: Bool {
-        !showNowPlaying && !isMirrorActive
-    }
-
-    private var totalHeight: CGFloat {
-        scaledLayout.totalHeight + (showsSeparateUtilityBar ? NotchLayout.utilityBarHeight : 0)
     }
 
     private var panelWidth: CGFloat {
@@ -246,19 +243,10 @@ struct CombinedNotchView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showsSeparateUtilityBar {
-                NotchUtilityBar(onOpenSettings: onOpenSettings, onOpenMirror: openMirror)
-                    .padding(.horizontal, 14)
-                    .frame(height: NotchLayout.utilityBarHeight)
-            }
-            if sectionCount > 0 {
-                panels
-            }
-        }
+        panels
         .padding(.horizontal, contentHorizontalInset)
         .padding(.top, 10)
-        .frame(width: totalWidth, height: totalHeight)
+        .frame(width: totalWidth, height: scaledLayout.totalHeight)
         .background {
             if usesFloatingStyle {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -302,7 +290,12 @@ struct CombinedNotchView: View {
             }
             onDropTargetChange?(newValue)
         }
-        .onHover { onHover?($0) }
+        .onHover { isHovering in
+            if !isHovering {
+                isTodoInputFocused = false
+            }
+            onHover?(isHovering)
+        }
         .onChange(of: isMirrorActive, initial: true) { _, active in
             onMirrorActiveChange?(active)
         }
@@ -318,13 +311,20 @@ struct CombinedNotchView: View {
                         onClose: { isMirrorActive = false }
                     )
                 }
+            } else if sectionCount == 0 {
+                sectionContainer {
+                    utilityBar
+                        .frame(width: panelWidth)
+                }
             } else {
                 if enableFileShelf {
-                    sectionContainer {
+                    panelWithOptionalUtilityBar(
+                        !showNowPlaying && !showTodoList && !enableClipboardHistory
+                    ) { height in
                         FileShelfView(
                             fileShelfManager: fileShelfManager,
                             panelWidth: panelWidth,
-                            panelHeight: panelHeight,
+                            panelHeight: height,
                             onExternalInteraction: onExternalInteraction
                         )
                     }
@@ -342,22 +342,61 @@ struct CombinedNotchView: View {
                     }
                 }
 
+                if showTodoList && !showNowPlaying {
+                    todoPanel
+                }
+
                 if enableClipboardHistory {
-                    sectionContainer {
+                    panelWithOptionalUtilityBar(!showNowPlaying && !showTodoList) { height in
                         ClipboardHistoryView(
                             clipboardManager: clipboardManager,
                             panelWidth: panelWidth,
-                            panelHeight: panelHeight
+                            panelHeight: height
                         )
                     }
                 }
 
-                if showTodoList {
-                    sectionContainer {
-                        TodoListView(panelWidth: panelWidth, panelHeight: panelHeight)
-                    }
+                if showTodoList && showNowPlaying {
+                    todoPanel
                 }
             }
+        }
+    }
+
+    private var todoPanel: some View {
+        panelWithOptionalUtilityBar(!showNowPlaying) { height in
+            TodoListView(
+                panelWidth: panelWidth,
+                panelHeight: height,
+                store: todoListStore,
+                draft: $todoDraft,
+                inputFocus: $isTodoInputFocused
+            )
+        }
+    }
+
+    private var utilityBar: some View {
+        NotchUtilityBar(
+            panelWidth: panelWidth,
+            panelHeight: panelHeight,
+            onOpenSettings: onOpenSettings,
+            onOpenMirror: openMirror
+        )
+    }
+
+    private func panelWithOptionalUtilityBar<Content: View>(
+        _ showsUtilityBar: Bool, @ViewBuilder content: (CGFloat) -> Content
+    ) -> some View {
+        sectionContainer {
+            VStack(spacing: 0) {
+                if showsUtilityBar {
+                    utilityBar
+                }
+                let headerHeight = showsUtilityBar
+                    ? NotchLayout.utilityBarHeight(panelHeight: panelHeight) : 0
+                content(panelHeight - headerHeight)
+            }
+            .frame(width: panelWidth, height: panelHeight, alignment: .top)
         }
     }
 
@@ -384,7 +423,7 @@ struct CombinedNotchView: View {
                 .padding(.horizontal, contentHorizontalInset)
                 .padding(.top, 10)
             }
-            .frame(width: totalWidth, height: totalHeight)
+            .frame(width: totalWidth, height: scaledLayout.totalHeight)
             .allowsHitTesting(false)
         } else {
             ZStack {
@@ -403,7 +442,7 @@ struct CombinedNotchView: View {
                 .padding(.horizontal, contentHorizontalInset)
                 .padding(.top, 10)
             }
-            .frame(width: totalWidth, height: totalHeight)
+            .frame(width: totalWidth, height: scaledLayout.totalHeight)
             .allowsHitTesting(false)
         }
     }
@@ -503,6 +542,8 @@ private struct NotchPanelDropDelegate: DropDelegate {
 
 private struct NotchUtilityBar: View {
     @ObservedObject private var desktopCleaner = DesktopCleanerManager.shared
+    let panelWidth: CGFloat
+    let panelHeight: CGFloat
     let onOpenSettings: () -> Void
     let onOpenMirror: () -> Void
 
@@ -544,6 +585,9 @@ private struct NotchUtilityBar: View {
             .buttonStyle(NotchIconButtonStyle(size: 24, cornerRadius: 7))
             .help("Open Mirror")
         }
+        .padding(.horizontal, min(22, max(14, panelWidth * 0.06)))
+        .padding(.top, NotchLayout.utilityBarTopPadding(panelHeight: panelHeight))
+        .padding(.bottom, 8)
     }
 }
 
@@ -613,10 +657,12 @@ struct ExpandedNotchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            NotchUtilityBar(onOpenSettings: onOpenSettings, onOpenMirror: onOpenMirror)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, verticalPadding)
-                .padding(.bottom, 8)
+            NotchUtilityBar(
+                panelWidth: panelWidth,
+                panelHeight: panelHeight,
+                onOpenSettings: onOpenSettings,
+                onOpenMirror: onOpenMirror
+            )
 
             Group {
                 if hasMedia {

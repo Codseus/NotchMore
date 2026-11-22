@@ -4,8 +4,9 @@ struct TodoListView: View {
     let panelWidth: CGFloat
     let panelHeight: CGFloat
 
-    @StateObject private var store = TodoListStore()
-    @State private var draft = ""
+    @ObservedObject var store: TodoListStore
+    @Binding var draft: String
+    var inputFocus: FocusState<Bool>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -14,8 +15,24 @@ struct TodoListView: View {
 
             HStack(spacing: 6) {
                 TextField("New task", text: $draft)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .font(.system(size: 12))
+                    .focusEffectDisabled()
+                    .focused(inputFocus)
+                    .padding(.horizontal, 8)
+                    .frame(height: 24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.08))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(
+                                inputFocus.wrappedValue ? Color.accentColor : Color.white.opacity(0.12)
+                            )
+                            .allowsHitTesting(false)
+                    }
+                    .animation(nil, value: inputFocus.wrappedValue)
                     .onSubmit(addTask)
                 Button(action: addTask) {
                     Image(systemName: "plus")
@@ -43,13 +60,14 @@ struct TodoListView: View {
         }
         .padding(10)
         .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
+        .onDisappear { inputFocus.wrappedValue = false }
     }
 
     private func taskRow(_ item: TodoItem) -> some View {
         HStack(spacing: 6) {
             Toggle(isOn: Binding(
                 get: { item.isCompleted },
-                set: { _ in store.toggleCompletion(for: item.id) }
+                set: { store.setCompleted($0, for: item.id) }
             )) {
                 Text(item.title)
                     .font(.system(size: 12))
